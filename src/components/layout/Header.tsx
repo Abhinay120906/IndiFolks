@@ -1,0 +1,33 @@
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Menu, X, Heart, UserRound, ChevronDown } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+
+const links = [
+  { href: "/artists", label: "Find Artists" },
+  { href: "/states", label: "Explore States" },
+  { href: "/about", label: "How it works" },
+];
+
+const Header = () => {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const { isAuthenticated, logout, user } = useAuth();
+  const artist = user?.role === "artist";
+
+  return <header className="if-header">
+    <div className="if-container if-nav">
+      <Link to="/" className="if-brand" onClick={() => setOpen(false)}><span className="if-brand-mark">I</span><span>Indi<span>Folks</span></span></Link>
+      {!artist && <nav className="if-nav-links">{links.map(link => <Link key={link.href} to={link.href} className={cn(location.pathname.startsWith(link.href) && "active")}>{link.label}</Link>)}<Link to="/artists" className="if-nav-dropdown">Art forms <ChevronDown size={14}/></Link></nav>}
+      {artist && <nav className="if-nav-links"><Link to="/artist/dashboard" className="active">Dashboard</Link></nav>}
+      <div className="if-nav-actions">
+        {!artist && <Link to="/profile" aria-label="Wishlist" className="if-icon-button"><Heart size={19}/></Link>}
+        {isAuthenticated ? <><Link to="/profile" className="if-profile-link"><UserRound size={17}/> Profile</Link><button onClick={logout} className="if-outline-button">Logout</button></> : <><Link to="/login" className="if-login">Log in</Link><Link to="/register" className="if-primary-button if-small">Get started</Link></>}
+      </div>
+      <button className="if-mobile-toggle" onClick={() => setOpen(v => !v)} aria-label="Open menu">{open ? <X/> : <Menu/>}</button>
+    </div>
+    {open && <div className="if-mobile-menu"><div className="if-container">{links.map(link => <Link onClick={() => setOpen(false)} key={link.href} to={link.href}>{link.label}</Link>)}<Link onClick={() => setOpen(false)} to="/about">How it works</Link><div className="if-mobile-divider"/>{isAuthenticated ? <><Link onClick={() => setOpen(false)} to="/profile">Profile</Link><button onClick={logout}>Logout</button></> : <><Link onClick={() => setOpen(false)} to="/login">Log in</Link><Link onClick={() => setOpen(false)} to="/register" className="if-primary-button">Get started</Link></>}</div></div>}
+  </header>;
+};
+export default Header;
