@@ -90,7 +90,7 @@ export default function Profile() {
             }
 
             // Update local user state
-            login(data as User);
+            login({ ...data, token: localStorage.getItem('token') || undefined } as User);
 
             toast({
                 title: 'Success',
