@@ -784,7 +784,10 @@ const BookingCard = ({ booking, onAction }: { booking: any, onAction: (id: strin
                         </>
                     )}
 
-                    {booking.status === 'confirmed' && (
+                    {booking.status === 'confirmed' && booking.paymentStatus === 'unpaid' && (
+                        <span className="text-sm text-muted-foreground">Awaiting customer payment</span>
+                    )}
+                    {booking.status === 'confirmed' && booking.paymentStatus === 'paid' && (
                         <Button
                             variant="outline"
                             size="sm"
