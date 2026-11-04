@@ -58,7 +58,7 @@ export default function AdminLogin() {
                             </svg>
                         </div>
                         <div>
-                            <p className="text-white font-bold text-xl leading-none">ArtfulBooking</p>
+                            <p className="text-white font-bold text-xl leading-none">IndiFolks</p>
                             <p className="text-violet-400 text-xs font-medium tracking-widest uppercase">Admin Portal</p>
                         </div>
                     </div>
@@ -125,12 +125,7 @@ export default function AdminLogin() {
                         </button>
                     </form>
 
-                    <p className="text-center mt-6 text-sm text-gray-500">
-                        Need an admin account?{' '}
-                        <Link to="/admin/register" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
-                            Register here
-                        </Link>
-                    </p>
+                    <p className="text-center mt-6 text-sm text-gray-500">Admin accounts are provisioned securely by the project owner.</p>
                 </div>
 
                 <p className="text-center mt-4 text-xs text-gray-600">
