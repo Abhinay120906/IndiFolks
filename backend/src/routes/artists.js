@@ -7,10 +7,17 @@ import { asyncRoute, badRequest, validId, parseJson, safeNumber } from '../lib/h
 
 export const artistsRouter = Router();
 function displayArtist(user) {
-  const u = typeof user.toJSON === 'function' ? user.toJSON() : user;
-  const reviews = u.reviews || [];
-  const rating = reviews.length ? reviews.reduce((s,r)=>s+r.rating,0)/reviews.length : 0;
-  return {...u,rating:Math.round(rating*10)/10,totalReviews:reviews.length,adminFee:Math.round((u.price||0)*0.05),totalPrice:Math.round((u.price||0)*1.05)};
+  const source = typeof user.toJSON === 'function' ? user.toJSON() : user;
+  const u = { ...source };
+  delete u.passwordHash;
+  delete u.email;
+  delete u.profileImagePublicId;
+  u.gallery = (u.gallery || []).map(({ publicId, ...image }) => image);
+  const reviews = (u.reviews || []).map(({ customer, ...review }) => review);
+  const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0;
+  return { ...u, reviews, rating: Math.round(rating * 10) / 10,
+    reviewsCount: reviews.length, totalReviews: reviews.length,
+    adminFee: 0, totalPrice: u.price || 0 };
 }
 artistsRouter.get('/',asyncRoute(async(req,res)=>{
   const filter={role:'artist',approvalStatus:'approved',isApproved:true};
