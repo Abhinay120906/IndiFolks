@@ -91,7 +91,7 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#e5ddd3] bg-[#fffdfa] p-6 text-[#231f1b] shadow-[0_24px_80px_rgba(0,0,0,0.32)] sm:max-w-[460px]">
                 {isSuccess ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                         <CheckCircle2 className="mb-4 h-16 w-16 text-green-500" />
@@ -125,7 +125,7 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
                                             {date ? format(date, "PPP") : <span>Pick a date</span>}
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
+                                    <PopoverContent className="w-auto rounded-xl border border-[#e5ddd3] bg-white p-2 text-[#231f1b] shadow-xl">
                                         <Calendar
                                             mode="single"
                                             selected={date}
@@ -173,7 +173,7 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
                             <Button
                                 onClick={handleBooking}
                                 disabled={isSubmitting}
-                                className="bg-gradient-saffron hover:opacity-90"
+                                className="bg-[#c86432] text-white hover:bg-[#ab4e20] focus-visible:ring-[#c86432]"
                             >
                                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Confirm Booking
