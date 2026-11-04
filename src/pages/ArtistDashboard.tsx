@@ -195,37 +195,17 @@ const ArtistDashboard = () => {
         setIsStatusLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const formData = new FormData();
-            // We reuse the update profile endpoint to just flip the availability
-            // But we need to make sure the backend handles 'available' field properly
-            // Actually let's check artistController's updateArtistProfile again
-            // It doesn't seem to explicitly handle 'available'. I might need to add it.
-
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/profile`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ available: !isAvailable }),
-                // Wait, if I'm sending JSON I shouldn't use FormData or I should set headers correctly
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ available: !isAvailable })
             });
-
-            // Re-thinking: Better to update the backend controller to handle simple JSON updates too or just add the field to multipart
-            // Let's assume for a second I will update the backend to handle 'available'
-
-            // Temporary workaround using existing formData structure
-            const fd = new FormData();
-            fd.append('available', String(!isAvailable));
-            const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/profile`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: fd
-            });
-
-            if (resp.ok) {
-                setIsAvailable(!isAvailable);
-                toast.success(`You are now ${!isAvailable ? 'Available' : 'Unavailable'}`);
-            }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Failed to update availability');
+            setIsAvailable(data.available);
+            toast.success(`You are now ${data.available ? 'Available' : 'Unavailable'}`);
         } catch (error) {
-            toast.error("Failed to update status");
+            toast.error(error instanceof Error ? error.message : 'Failed to update availability');
         } finally {
             setIsStatusLoading(false);
         }
