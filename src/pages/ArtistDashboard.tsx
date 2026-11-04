@@ -538,7 +538,11 @@ const ArtistDashboard = () => {
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Confirmed</Badge>
-                                                        <Button variant="ghost" size="sm" onClick={() => updateStatus(booking._id, 'completed')}>Done</Button>
+                                                        {booking.paymentStatus === 'paid' ? (
+                                                            <Button variant="ghost" size="sm" onClick={() => updateStatus(booking._id, 'completed')}>Mark completed</Button>
+                                                        ) : (
+                                                            <span className="text-sm text-muted-foreground">Awaiting payment</span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
