@@ -1,0 +1,25 @@
+# IndiFolks thesis demo API — Render free-tier deployment.
+# Deploy this Blueprint from branch feature/backend-development.
+# Never place real database credentials or payment secrets in this file.
+services:
+  - type: web
+    name: indifolks-api
+    runtime: node
+    plan: free
+    region: singapore
+    repo: https://github.com/Abhinay120906/IndiFolks
+    branch: feature/backend-development
+    rootDir: backend
+    buildCommand: npm install --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_ORIGINS
+        value: https://abhinay120906.github.io
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+# Add Razorpay TEST keys and optional Cloudinary keys later in the Render dashboard.
