@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,8 +97,9 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
                         <CheckCircle2 className="mb-4 h-16 w-16 text-green-500" />
                         <h3 className="text-xl font-bold">Booking Requested!</h3>
                         <p className="text-muted-foreground text-sm">
-                            Your request for {artistName} has been sent. You will be notified once they confirm.
+                            Your request for {artistName} has been sent. Once the artist accepts, visit My bookings to complete a Razorpay test payment.
                         </p>
+                        <Button asChild className="mt-5"><Link to="/bookings" onClick={onClose}>View my bookings</Link></Button>
                     </div>
                 ) : (
                     <>
