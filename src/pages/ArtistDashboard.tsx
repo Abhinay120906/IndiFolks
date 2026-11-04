@@ -243,7 +243,7 @@ const ArtistDashboard = () => {
 
     // Stats calculation
     const totalEarnings = bookings
-        .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        .filter(b => (b.status === 'confirmed' || b.status === 'completed') && b.paymentStatus === 'paid')
         .reduce((sum, b) => sum + (b.price || 0), 0);
 
     if (isLoading) {
