@@ -33,11 +33,12 @@ const states = records.map(([name,region,forms])=>({
 statesRouter.get('/',asyncRoute(async(_req,res)=>{
  const counts=await User.aggregate([{$match:{role:'artist',isApproved:true,approvalStatus:'approved'}},{$group:{_id:'$state',count:{$sum:1}}}]);
  const byState=new Map(counts.map(x=>[x._id,x.count]));
- res.json(states.map(s=>({...s,artistCount:byState.get(s.name)||0})));
+ res.json(states.map(s=>({...s,artForms:s.artForms.length,artists:byState.get(s.name)||0,artistCount:byState.get(s.name)||0})));
 }));
 statesRouter.get('/:id',asyncRoute(async(req,res)=>{
  const s=states.find(x=>x.id===req.params.id);
  if(!s) return res.status(404).json({message:'State not found'});
  const artists=await User.find({role:'artist',state:s.name,isApproved:true,approvalStatus:'approved'}).select('name profileImage artForm specialty state price').limit(10).lean();
- res.json({...s,featuredArtists:artists});
+ const artForms=s.artForms.map(name=>({id:slug(name),name,type:'Traditional art',image:'/placeholder.svg',description:'Discover '+name+' performers and cultural artists.'}));
+ res.json({...s,artForms,culturalHighlights:s.artForms.map(name=>name+' traditions'),featuredArtists:artists});
 }));
