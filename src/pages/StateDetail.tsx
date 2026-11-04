@@ -155,7 +155,7 @@ const StateDetail = () => {
                 <Card className="group h-full overflow-hidden transition-all hover:border-primary/30 hover:shadow-warm">
                   <div className="relative aspect-video bg-gradient-to-br from-primary/20 to-accent/20">
                     <img
-                      src={artForm.image}
+                      src={artForm.image?.startsWith("/") ? import.meta.env.BASE_URL + artForm.image.replace(/^\\/+/, "") : artForm.image}
                       alt={artForm.name}
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
                     />
