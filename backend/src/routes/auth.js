@@ -47,6 +47,10 @@ authRouter.put('/profile', requireAuth, imageUpload.single('profileImage'), asyn
     req.user.name=req.body.name.trim();
   }
   if(req.body.bio !== undefined) req.user.bio=String(req.body.bio).slice(0,3000);
+  if(req.user.role==='artist') {
+    if(req.body.state!==undefined) req.user.state=String(req.body.state).slice(0,100);
+    if(req.body.specialty!==undefined) {req.user.specialty=String(req.body.specialty).slice(0,100);req.user.artForm=req.user.specialty;}
+  }
   if(req.file) {
     const img=await uploadImage(req.file);
     req.user.profileImage=img.url; req.user.profileImagePublicId=img.publicId;
