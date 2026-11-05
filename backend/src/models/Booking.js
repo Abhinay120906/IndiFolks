@@ -12,7 +12,10 @@ const bookingSchema = new mongoose.Schema({
     type: String, enum: ['pending', 'confirmed', 'completed', 'cancelled'],
     default: 'pending', index: true
   },
-  paymentStatus: { type: String, enum: ['unpaid', 'paid', 'refunded'], default: 'unpaid' },
+  // "demo_paid" is never a real payment or Razorpay settlement.
+  paymentStatus: { type: String, enum: ['unpaid', 'paid', 'demo_paid', 'refunded'], default: 'unpaid' },
+  demoPaymentId: String,
+  demoPaidAt: Date,
   razorpayOrderId: { type: String, index: true },
   razorpayPaymentId: String,
   paidAt: Date
