@@ -10,6 +10,7 @@ import { bookingsRouter } from './routes/bookings.js';
 import { adminRouter } from './routes/admin.js';
 import { statesRouter } from './routes/states.js';
 import { paymentsRouter } from './routes/payments.js';
+import { demoPaymentsRouter } from './routes/demoPayments.js';
 import { User } from './models/User.js';
 
 const app=express();
@@ -27,6 +28,7 @@ app.use('/api/bookings',bookingsRouter);
 app.use('/api/admin',adminRouter);
 app.use('/api/states',statesRouter);
 app.use('/api/payments',paymentsRouter);
+app.use('/api/demo-payments',demoPaymentsRouter);
 app.get('/api/stats',async(req,res,next)=>{
  try {
   const totalArtists=await User.countDocuments({role:'artist',isApproved:true,approvalStatus:'approved'});
