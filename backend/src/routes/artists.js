@@ -78,6 +78,25 @@ artistsRouter.get('/:id/my-review',requireAuth,requireRole('customer'),asyncRout
   const review=artist.reviews.find(r=>String(r.customer)===String(req.user._id));
   res.json({review:review?{rating:review.rating,comment:review.comment,createdAt:review.createdAt}:null});
 }));
+// Allow customers to edit their own review, never another customer's review.
+// Keep the original review ID and creation date; rating aggregates are
+// recomputed by displayArtist after saving the same embedded document.
+artistsRouter.patch('/:id/my-review',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+  if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
+  const {rating,comment}=req.body||{};
+  if(typeof rating!=='number'||!Number.isInteger(rating)||rating<1||rating>5||
+     typeof comment!=='string'||!comment.trim()||comment.length>1000) {
+    return badRequest(res,'Provide a rating between 1 and 5 and a comment of at most 1000 characters');
+  }
+  const artist=await User.findOne({_id:req.params.id,role:'artist',approvalStatus:'approved',isApproved:true});
+  if(!artist) return res.status(404).json({message:'Artist not found'});
+  const review=artist.reviews.find(r=>String(r.customer)===String(req.user._id));
+  if(!review) return res.status(404).json({message:'You have not reviewed this artist'});
+  review.rating=rating;
+  review.comment=comment.trim();
+  await artist.save();
+  return res.json({review:{rating:review.rating,comment:review.comment,createdAt:review.createdAt,updatedAt:review.updatedAt},artist:displayArtist(artist)});
+}));
 artistsRouter.get('/:id',asyncRoute(async(req,res)=>{
   if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
   const user=await User.findOne({_id:req.params.id,role:'artist',approvalStatus:'approved',isApproved:true});
