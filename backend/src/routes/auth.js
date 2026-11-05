@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
 import { asyncRoute, badRequest } from '../lib/helpers.js';
-import { imageUpload, uploadImage } from '../lib/upload.js';
+import { imageUpload, uploadImage, deleteImage } from '../lib/upload.js';
 import { requireAuth, authResponse } from '../middleware/auth.js';
 
 export const authRouter = Router();
@@ -51,9 +51,20 @@ authRouter.put('/profile', requireAuth, imageUpload.single('profileImage'), asyn
     if(req.body.state!==undefined) req.user.state=String(req.body.state).slice(0,100);
     if(req.body.specialty!==undefined) {req.user.specialty=String(req.body.specialty).slice(0,100);req.user.artForm=req.user.specialty;}
   }
-  if(req.file) {
-    const img=await uploadImage(req.file);
-    req.user.profileImage=img.url; req.user.profileImagePublicId=img.publicId;
+  const oldProfileImageId=req.user.profileImagePublicId;
+  let uploaded;
+  try {
+    if(req.file) {
+      uploaded=await uploadImage(req.file);
+      req.user.profileImage=uploaded.url; req.user.profileImagePublicId=uploaded.publicId;
+    }
+    await req.user.save();
+  } catch(err) {
+    if(uploaded?.publicId) await deleteImage(uploaded.publicId).catch(()=>{});
+    throw err;
   }
-  await req.user.save(); res.json(req.user);
+  if(uploaded&&oldProfileImageId&&oldProfileImageId!==uploaded.publicId) {
+    await deleteImage(oldProfileImageId).catch(err=>console.error('Previous avatar cleanup failed:',err.message));
+  }
+  res.json(req.user);
 }));
