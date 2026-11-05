@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import ArtistTaxonomyFields from "@/components/ArtistTaxonomyFields";
 
 const ArtistDashboard = () => {
     const { user } = useAuth();
@@ -35,6 +36,7 @@ const ArtistDashboard = () => {
     const [bio, setBio] = useState("");
     const [specialty, setSpecialty] = useState("");
     const [stateLocation, setStateLocation] = useState("");
+    const [artForm, setArtForm] = useState("");
     const [experience, setExperience] = useState("");
     const [price, setPrice] = useState(0);
     const [story, setStory] = useState("");
@@ -74,6 +76,7 @@ const ArtistDashboard = () => {
             setBio(data.bio || "");
             setSpecialty(data.specialty || "");
             setStateLocation(data.state || "");
+            setArtForm(data.artForm || data.specialty || "");
             setExperience(data.experience || "");
             setPrice(data.price || 0);
             setStory(data.story || "");
@@ -127,6 +130,10 @@ const ArtistDashboard = () => {
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!stateLocation.trim() || !artForm.trim()) {
+            toast.error("Choose your state and art form, or provide them under Other.");
+            return;
+        }
         const files = [...(newImages ? Array.from(newImages) : []), ...(newProfileImage ? [newProfileImage] : [])];
         if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) {
             toast.error("Only JPG, PNG and WebP images are supported");
@@ -152,6 +159,7 @@ const ArtistDashboard = () => {
             formData.append('bio', bio);
             formData.append('specialty', specialty);
             formData.append('state', stateLocation);
+            formData.append('artForm', artForm);
             formData.append('experience', experience);
             formData.append('price', price.toString());
             formData.append('story', story);
@@ -172,6 +180,7 @@ const ArtistDashboard = () => {
             setBio(data.bio || "");
             setSpecialty(data.specialty || "");
             setStateLocation(data.state || "");
+            setArtForm(data.artForm || data.specialty || "");
             setExperience(data.experience || "");
             setStory(data.story || "");
             setPrice(data.price || 0);
@@ -590,19 +599,20 @@ const ArtistDashboard = () => {
                                         <Label htmlFor="name">Artist Stage Name</Label>
                                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                                     </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="stateLocation">State</Label>
-                                        <Input id="stateLocation" value={stateLocation} onChange={(e) => setStateLocation(e.target.value)} placeholder="e.g. West Bengal" />
+                                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                                        <ArtistTaxonomyFields
+                                            required
+                                            state={stateLocation}
+                                            artForm={artForm}
+                                            specialty={specialty}
+                                            onStateChange={setStateLocation}
+                                            onArtFormChange={setArtForm}
+                                            onSpecialtyChange={setSpecialty}
+                                        />
                                     </div>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="specialty">Primary Specialty</Label>
-                                            <Input id="specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Kathakali, Baul Singing" />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="experience">Years of Experience</Label>
-                                            <Input id="experience" value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="e.g. 15+ Years" />
-                                        </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="experience">Years of Experience</Label>
+                                        <Input id="experience" value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="e.g. 15+ Years" />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="price">Base Performance Price (₹)</Label>
