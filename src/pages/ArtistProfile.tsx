@@ -28,7 +28,13 @@ const ArtistProfile = () => {
   const [currentGalleryIndex, setCurrentGalleryIndex] = useState(0);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const [activeTab, setActiveTab] = useState("about");
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [availabilityRefresh, setAvailabilityRefresh] = useState(0);
+  const monthKey = format(currentMonth, "yyyy-MM");
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -81,6 +87,42 @@ const ArtistProfile = () => {
     void loadOwnReview();
     return () => { cancelled = true; };
   }, [id, user?._id, user?.role]);
+
+  useEffect(() => {
+    if (!id || activeTab !== "availability") return;
+    let cancelled = false;
+    setAvailabilityLoading(true);
+    setAvailabilityError("");
+    setBookedDates([]);
+    const loadAvailability = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/artists/${id}/availability?month=${monthKey}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("Unable to load booked dates");
+        const data = await response.json();
+        if (!Array.isArray(data.bookedDates)) throw new Error("Invalid calendar response");
+        if (!cancelled) setBookedDates(data.bookedDates);
+      } catch {
+        if (!cancelled) setAvailabilityError("Couldn't load the artist's booked dates. Please retry.");
+      } finally {
+        if (!cancelled) setAvailabilityLoading(false);
+      }
+    };
+    void loadAvailability();
+    return () => { cancelled = true; };
+  }, [id, monthKey, activeTab, availabilityRefresh]);
+
+  const goToAvailability = (pkg: any = null) => {
+    setSelectedPackage(pkg);
+    setSelectedDate(null);
+    setActiveTab("availability");
+    setAvailabilityRefresh(n => n + 1);
+    requestAnimationFrame(() => {
+      document.getElementById("artist-availability")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   if (isLoading) {
     return (
@@ -289,8 +331,7 @@ const ArtistProfile = () => {
                     size="lg"
                     className="flex-1 bg-gradient-saffron text-lg hover:opacity-90"
                     onClick={() => {
-                      setSelectedPackage(null);
-                      setIsBookingModalOpen(true);
+                      goToAvailability();
                     }}
                   >
                     Book Now
@@ -312,7 +353,9 @@ const ArtistProfile = () => {
 
       <BookingModal
         isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
+        onClose={() => { setIsBookingModalOpen(false); setSelectedDate(null); }}
+        selectedDate={selectedDate}
+        onAvailabilityChanged={() => setAvailabilityRefresh(n => n + 1)}
         artistId={artist._id}
         artistName={artist.name}
         price={artist.totalPrice || Math.round((artist.price || 0) * 1.1)}
@@ -322,7 +365,7 @@ const ArtistProfile = () => {
       {/* Details Tabs */}
       <section className="py-8 md:py-12 bg-muted/20">
         <div className="container">
-          <Tabs defaultValue="about" className="space-y-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
             <div className="flex justify-center">
               <TabsList className="bg-card border p-1 rounded-full shadow-sm">
                 <TabsTrigger value="about" className="rounded-full px-8">About</TabsTrigger>
@@ -416,8 +459,7 @@ const ArtistProfile = () => {
                         Contact {artist.name} to customize a performance for your next event.
                       </p>
                       <Button variant="secondary" className="w-full rounded-full" onClick={() => {
-                        setSelectedPackage(null);
-                        setIsBookingModalOpen(true);
+                        goToAvailability();
                       }}>
                         Message Artist
                       </Button>
@@ -459,8 +501,7 @@ const ArtistProfile = () => {
                           <span className="text-muted-foreground text-xs">fixed rate</span>
                         </div>
                         <Button className="w-full rounded-full bg-primary hover:bg-primary/90" onClick={() => {
-                          setSelectedPackage(pkg);
-                          setIsBookingModalOpen(true);
+                          goToAvailability(pkg);
                         }}>
                           Book This Package
                         </Button>
@@ -470,7 +511,7 @@ const ArtistProfile = () => {
                 ) : (
                   <div className="col-span-full py-12 text-center text-muted-foreground bg-card border rounded-3xl">
                     <p>Standard pricing applies based on the quoted rate of ₹{(artist.totalPrice || Math.round((artist.price || 0) * 1.1)).toLocaleString("en-IN")}.</p>
-                    <Button variant="outline" className="mt-4 rounded-full" onClick={() => setIsBookingModalOpen(true)}>Inquire for Quote</Button>
+                    <Button variant="outline" className="mt-4 rounded-full" onClick={() => goToAvailability()}>Select an Available Date</Button>
                   </div>
                 )}
               </div>
@@ -496,12 +537,12 @@ const ArtistProfile = () => {
             </TabsContent>
 
             {/* Availability Tab */}
-            <TabsContent value="availability" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TabsContent id="artist-availability" value="availability" className="animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
               <div className="max-w-4xl mx-auto">
                 <Card className="rounded-3xl border-none shadow-xl">
                   <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-display">Booking Schedule</CardTitle>
-                    <p className="text-muted-foreground">Dates highlighted in red are already confirmed</p>
+                    <p className="text-muted-foreground">Select a green date to request a booking. Red dates are already booked and unavailable.</p>
                   </CardHeader>
                   <CardContent>
                     <div className="mb-8 flex justify-center flex-wrap gap-6">
@@ -510,11 +551,11 @@ const ArtistProfile = () => {
                         <span className="text-sm font-medium">Available</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-secondary"></div>
+                        <div className="h-3 w-3 rounded-full bg-red-500"></div>
                         <span className="text-sm font-medium">Booked</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-muted"></div>
+                        <div className="h-3 w-3 rounded-full bg-slate-400"></div>
                         <span className="text-sm font-medium">Blocked</span>
                       </div>
                     </div>
@@ -527,7 +568,7 @@ const ArtistProfile = () => {
                             variant="outline"
                             size="icon"
                             className="rounded-full h-8 w-8"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)))}
+                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
                           >
                             <ChevronLeft className="h-4 w-4" />
                           </Button>
@@ -535,7 +576,7 @@ const ArtistProfile = () => {
                             variant="outline"
                             size="icon"
                             className="rounded-full h-8 w-8"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() + 1)))}
+                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
                           >
                             <ChevronRight className="h-4 w-4" />
                           </Button>
