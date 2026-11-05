@@ -80,7 +80,8 @@ artistsRouter.post('/:id/reviews',requireAuth,requireRole('customer'),asyncRoute
   if(!validId(req.params.id)||!Number.isInteger(Number(rating))||Number(rating)<1||Number(rating)>5||typeof comment!=='string'||comment.length>1000) return badRequest(res,'Invalid review');
   const artist=await User.findOne({_id:req.params.id,role:'artist',isApproved:true});
   if(!artist) return res.status(404).json({message:'Artist not found'});
-  const completed=await Booking.exists({customer:req.user._id,artist:artist._id,status:'completed',paymentStatus:'paid'});
+  const acceptedPayments=process.env.ENABLE_DEMO_PAYMENTS==='true'?['paid','demo_paid']:['paid'];
+  const completed=await Booking.exists({customer:req.user._id,artist:artist._id,status:'completed',paymentStatus:{$in:acceptedPayments}});
   if(!completed) return res.status(403).json({message:'Review requires completed paid booking'});
   if(artist.reviews.some(r=>String(r.customer)===String(req.user._id))) return res.status(409).json({message:'Already reviewed'});
   artist.reviews.push({customer:req.user._id,name:req.user.name,rating:Number(rating),comment});
