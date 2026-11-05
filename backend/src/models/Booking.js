@@ -5,7 +5,7 @@ const bookingSchema = new mongoose.Schema({
   artist: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   date: { type: Date, required: true },
   // Local calendar day in Asia/Kolkata, used to prevent overlapping confirmations.
-  eventDay: { type: String, match: /^\\d{4}-\\d{2}-\\d{2}$/ },
+  eventDay: { type: String, match: /^\d{4}-\d{2}-\d{2}$/ },
   location: { type: String, required: true, trim: true, maxlength: 500 },
   message: { type: String, maxlength: 2000, default: '' },
   price: { type: Number, min: 1, required: true },
