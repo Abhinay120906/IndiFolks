@@ -4,6 +4,7 @@ import { Booking } from '../models/Booking.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { imageUpload, uploadImage } from '../lib/upload.js';
 import { asyncRoute, badRequest, validId, parseJson, safeNumber } from '../lib/helpers.js';
+import { indiaDayKey,monthRange } from '../lib/bookingDates.js';
 
 export const artistsRouter = Router();
 function displayArtist(user) {
@@ -96,6 +97,21 @@ artistsRouter.patch('/:id/my-review',requireAuth,requireRole('customer'),asyncRo
   review.comment=comment.trim();
   await artist.save();
   return res.json({review:{rating:review.rating,comment:review.comment,createdAt:review.createdAt,updatedAt:review.updatedAt},artist:displayArtist(artist)});
+}));
+// Public booked-day calendar. Exposes dates only, never customers or venues.
+artistsRouter.get('/:id/availability',asyncRoute(async(req,res)=>{
+  if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
+  const month=typeof req.query.month==='string'?req.query.month:'';
+  const range=monthRange(month);
+  if(!range) return badRequest(res,'Provide month in YYYY-MM format');
+  const artist=await User.exists({_id:req.params.id,role:'artist',approvalStatus:'approved',isApproved:true});
+  if(!artist) return res.status(404).json({message:'Artist not found'});
+  const bookings=await Booking.find({
+    artist:req.params.id,date:{$gte:range.start,$lt:range.end},
+    status:{$in:['confirmed','completed']}
+  }).select('date').lean();
+  res.setHeader('Cache-Control','no-store');
+  res.json({month,bookedDates:[...new Set(bookings.map(b=>indiaDayKey(b.date)).filter(Boolean))].sort()});
 }));
 artistsRouter.get('/:id',asyncRoute(async(req,res)=>{
   if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
