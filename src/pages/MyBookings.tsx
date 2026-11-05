@@ -35,7 +35,7 @@ export default function MyBookings() {
 
   const fetchBookings = useCallback(async () => {
     const token = localStorage.getItem("token");
-    if (!token || user?.role !== "customer") {
+    if (!token || (user?.role !== "customer" && user?.role !== "artist")) {
       setBookings([]);
       setLoading(false);
       return;
@@ -54,7 +54,7 @@ export default function MyBookings() {
     } finally {
       setLoading(false);
     }
-  }, [user?.role]);
+  }, [user?._id, user?.role]);
 
   useEffect(() => { if (!authLoading) void fetchBookings(); }, [authLoading, fetchBookings]);
 
@@ -89,11 +89,15 @@ export default function MyBookings() {
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold">My bookings</h1>
-          <p className="mt-2 text-muted-foreground">Track your artist booking requests and practice the payment workflow.</p>
+          <p className="mt-2 text-muted-foreground">Track your outgoing bookings as an event host{user?.role === "artist" ? " (separate from incoming requests on your artist dashboard)" : ""} and practice the payment workflow.</p>
         </div>
-        <Button variant="outline" onClick={() => void fetchBookings()} disabled={loading}>
+        <div className="flex flex-wrap items-center gap-2">
+          {user?.role === "artist" && <Button asChild variant="outline"><Link to="/artist/dashboard">My Artist Dashboard</Link></Button>}
+          <Button asChild variant="outline"><Link to="/artists">Find artists</Link></Button>
+          <Button variant="outline" onClick={() => void fetchBookings()} disabled={loading}>
           <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-        </Button>
+          </Button>
+        </div>
       </div>
 
       <div className="mb-7 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950" role="note">
@@ -105,9 +109,9 @@ export default function MyBookings() {
         </p>
       </div>
 
-      {!user || user.role !== "customer" ?
+      {!user || (user.role !== "customer" && user.role !== "artist") ?
         <Card><CardContent className="py-10 text-center">
-          <p>Log in with a customer account to view your bookings.</p>
+          <p>Log in with your customer or artist account to view your outgoing bookings.</p>
           <Button asChild className="mt-4"><Link to="/login">Log in</Link></Button>
         </CardContent></Card>
       : loading ? <p>Loading bookings…</p>

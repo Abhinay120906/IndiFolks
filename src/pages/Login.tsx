@@ -48,9 +48,7 @@ export default function Login() {
                 title: 'Success',
                 description: 'Logged in successfully',
             });
-            if (data.role === 'artist') {
-                navigate('/artist/dashboard');
-            } else if (data.role === 'admin') {
+            if (data.role === 'admin') {
                 navigate('/admin');
             } else {
                 navigate('/');
