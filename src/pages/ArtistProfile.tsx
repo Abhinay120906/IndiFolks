@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import MainLayout from "@/components/layout/MainLayout";
 import BookingModal from "@/components/BookingModal";
+import { cn } from "@/lib/utils";
 
 const ArtistProfile = () => {
   const { id } = useParams();
@@ -26,7 +27,7 @@ const ArtistProfile = () => {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
@@ -66,6 +67,14 @@ const ArtistProfile = () => {
       </MainLayout>
     );
   }
+
+  // The API returns `reviews`; `customerReviews` is retained only for older fixtures.
+  const displayedReviews = Array.isArray(artist.reviews)
+    ? artist.reviews
+    : Array.isArray(artist.customerReviews) ? artist.customerReviews : [];
+
+  const starStyle = (selected: boolean) =>
+    selected ? "fill-[#f6b73c] text-[#d88b14]" : "fill-none text-[#cdbfae]";
 
   const gallery = [
     { id: 1, type: "image", url: artist.profileImage || "/placeholder.svg", title: "Profile Image" },
@@ -204,8 +213,8 @@ const ArtistProfile = () => {
               {/* Rating & Location */}
               <div className="mb-6 flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-1">
-                  <Star className="h-5 w-5 fill-accent text-accent" />
-                  <span className="font-semibold">{artist.rating || 4.5}</span>
+                  <Star strokeWidth={1.8} className={cn("h-5 w-5", starStyle(Boolean(artist.reviewsCount)))} />
+                  <span className="font-semibold">{artist.reviewsCount ? artist.rating : "New"}</span>
                   <span className="text-muted-foreground">({artist.reviewsCount || 0} reviews)</span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground">
@@ -556,7 +565,7 @@ const ArtistProfile = () => {
                       <span className="text-5xl font-extrabold text-foreground">{artist.rating || 0}</span>
                       <div className="flex my-3">
                         {Array.from({ length: 5 }, (_, i) => (
-                          <Star key={i} className={`h-5 w-5 ${i < Math.floor(artist.rating || 0) ? "fill-saffron-500 text-saffron-500" : "text-muted"}`} />
+                          <Star key={i} strokeWidth={1.8} className={`h-5 w-5 ${starStyle(i < Math.floor(artist.rating || 0))}`} />
                         ))}
                       </div>
                       <p className="text-muted-foreground text-sm">Average rating from {artist.reviewsCount || 0} reviews</p>
@@ -566,16 +575,23 @@ const ArtistProfile = () => {
                     <Card className="rounded-3xl border-none bg-card shadow-lg p-6">
                       <h4 className="font-bold text-lg mb-4">Write a Review</h4>
                       <div className="space-y-4">
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => setReviewRating(star)}
-                              className="focus:outline-none"
-                            >
-                              <Star className={`h-6 w-6 ${star <= reviewRating ? "fill-saffron-500 text-saffron-500" : "text-muted"}`} />
-                            </button>
-                          ))}
+                        <div>
+                          <p className="mb-2 text-sm font-medium text-foreground">Your rating</p>
+                          <div className="flex items-center gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                aria-label={`Rate ${star} ${star === 1 ? "star" : "stars"}`}
+                                aria-pressed={star === reviewRating}
+                                onClick={() => setReviewRating(star)}
+                                className="rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                              >
+                                <Star strokeWidth={1.8} className={`h-8 w-8 transition-colors ${starStyle(star <= reviewRating)}`} />
+                              </button>
+                            ))}
+                            <span className="ml-2 text-sm font-medium text-muted-foreground">{reviewRating ? `${reviewRating}/5` : "Select stars"}</span>
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="review-comment">Your Comment</Label>
@@ -589,7 +605,7 @@ const ArtistProfile = () => {
                         </div>
                         <Button
                           className="w-full rounded-full bg-primary"
-                          disabled={isSubmittingReview || !reviewComment}
+                          disabled={isSubmittingReview || reviewRating === 0 || !reviewComment.trim()}
                           onClick={async () => {
                             setIsSubmittingReview(true);
                             try {
@@ -602,17 +618,14 @@ const ArtistProfile = () => {
                                 },
                                 body: JSON.stringify({ rating: reviewRating, comment: reviewComment })
                               });
-                              if (response.ok) {
-                                // Refresh artist data
-                                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/${artist._id}`);
-                                const data = await res.json();
-                                setArtist(data);
-                                setReviewComment("");
-                                setReviewRating(5);
-                                toast.success("Review submitted!");
-                              }
+                              const data = await response.json();
+                              if (!response.ok) throw new Error(data?.message || "Failed to submit review");
+                              setArtist(data);
+                              setReviewComment("");
+                              setReviewRating(0);
+                              toast.success("Review submitted!");
                             } catch (e) {
-                              toast.error("Failed to submit review");
+                              toast.error(e instanceof Error ? e.message : "Failed to submit review");
                             } finally {
                               setIsSubmittingReview(false);
                             }
@@ -630,30 +643,31 @@ const ArtistProfile = () => {
                       <CardTitle className="text-2xl font-display">Voice of the Audience</CardTitle>
                     </CardHeader>
                     <CardContent className="px-0 space-y-4">
-                      {artist?.customerReviews?.length > 0 ? (
-                        artist.customerReviews.map((review: any, idx: number) => (
-                          <div key={review.id || review._id} className="rounded-2xl border bg-card p-6 shadow-sm hover:shadow-md transition-all">
+                      {displayedReviews.length > 0 ? (
+                        displayedReviews.map((review: any, idx: number) => (
+                          <div key={review._id || review.id || idx} className="rounded-2xl border bg-card p-6 shadow-sm hover:shadow-md transition-all">
                             <div className="mb-4 flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/5 border border-primary/10 font-bold text-primary text-lg">
-                                  {review.user?.charAt(0) || 'U'}
+                                  {(review.name || review.user || 'C').charAt(0).toUpperCase()}
                                 </div>
                                 <div>
-                                  <p className="font-bold text-foreground text-lg">{review.user || 'User'}</p>
-                                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{review.date || 'March 2026'}</p>
+                                  <p className="font-bold text-foreground text-lg">{review.name || review.user || 'Customer'}</p>
+                                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{review.createdAt ? new Date(review.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : (review.date || "")}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-0.5">
                                 {Array.from({ length: 5 }, (_, i) => (
                                   <Star
                                     key={i}
-                                    className={`h-4 w-4 ${i < (review.rating || 0) ? "fill-saffron-500 text-saffron-500" : "text-muted"}`}
+                                    strokeWidth={1.8}
+                                     className={`h-4 w-4 ${starStyle(i < (review.rating || 0))}`}
                                   />
                                 ))}
                               </div>
                             </div>
                             <p className="text-muted-foreground leading-relaxed italic">
-                              "{review.comment || 'An incredible experience that exceeded all expectations.'}"
+                              {review.comment ? `“${review.comment}”` : "No written comment."}
                             </p>
                           </div>
                         ))
