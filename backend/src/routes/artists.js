@@ -145,8 +145,9 @@ artistsRouter.put('/profile',requireAuth,requireRole('artist'),
 }));
 // Return only the authenticated customer's own review; public artist responses
 // intentionally omit customer IDs to protect reviewers' privacy.
-artistsRouter.get('/:id/my-review',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+artistsRouter.get('/:id/my-review',requireAuth,requireRole('customer','artist'),asyncRoute(async(req,res)=>{
   if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
+  if(String(req.params.id)===String(req.user._id)) return res.status(403).json({message:'You cannot review your own artist profile'});
   const artist=await User.findOne({_id:req.params.id,role:'artist',isApproved:true}).select('reviews');
   if(!artist) return res.status(404).json({message:'Artist not found'});
   const review=artist.reviews.find(r=>String(r.customer)===String(req.user._id));
@@ -155,8 +156,9 @@ artistsRouter.get('/:id/my-review',requireAuth,requireRole('customer'),asyncRout
 // Allow customers to edit their own review, never another customer's review.
 // Keep the original review ID and creation date; rating aggregates are
 // recomputed by displayArtist after saving the same embedded document.
-artistsRouter.patch('/:id/my-review',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+artistsRouter.patch('/:id/my-review',requireAuth,requireRole('customer','artist'),asyncRoute(async(req,res)=>{
   if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
+  if(String(req.params.id)===String(req.user._id)) return res.status(403).json({message:'You cannot review your own artist profile'});
   const {rating,comment}=req.body||{};
   if(typeof rating!=='number'||!Number.isInteger(rating)||rating<1||rating>5||
      typeof comment!=='string'||!comment.trim()||comment.length>1000) {
@@ -192,8 +194,9 @@ artistsRouter.get('/:id',asyncRoute(async(req,res)=>{
   if(!user) return res.status(404).json({message:'Artist not found'});
   res.json(displayArtist(user));
 }));
-artistsRouter.post('/:id/reviews',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+artistsRouter.post('/:id/reviews',requireAuth,requireRole('customer','artist'),asyncRoute(async(req,res)=>{
   const {rating,comment=''}=req.body;
+  if(String(req.params.id)===String(req.user._id)) return res.status(403).json({message:'You cannot review your own artist profile'});
   if(!validId(req.params.id)||!Number.isInteger(Number(rating))||Number(rating)<1||Number(rating)>5||typeof comment!=='string'||comment.length>1000) return badRequest(res,'Invalid review');
   const artist=await User.findOne({_id:req.params.id,role:'artist',isApproved:true});
   if(!artist) return res.status(404).json({message:'Artist not found'});
