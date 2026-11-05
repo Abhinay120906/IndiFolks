@@ -13,18 +13,21 @@ const states = STATE_RECORDS.map(([name,region,forms])=>({
 const approved={role:'artist',isApproved:true,approvalStatus:'approved'};
 
 statesRouter.get('/',asyncRoute(async(_req,res)=>{
-  const artists=await User.find(approved).select('state').limit(3000).lean();
+  const artists=await User.find(approved).select('state artForm specialty').limit(3000).lean();
   const counts=new Map();
+  const formsByState=new Map();
   for(const artist of artists) {
     const state=normalizeState(artist.state);
     counts.set(state,(counts.get(state)||0)+1);
+    if(!formsByState.has(state)) formsByState.set(state,new Set());
+    if(artist.artForm||artist.specialty) formsByState.get(state).add(artist.artForm||artist.specialty);
   }
   const known=new Set(STATE_NAMES);
   const otherLocations=[...counts.entries()]
     .filter(([name])=>name&&!known.has(name)&&slug(name))
     .map(([name,count])=>({
       id:slug(name),name,region:'Other',icon:'🧭',
-      artForms:0,artists:count,artistCount:count,
+      artForms:formsByState.get(name)?.size||0,artists:count,artistCount:count,
       description:'Discover artists working in '+name+'.'
     })).sort((a,b)=>a.name.localeCompare(b.name));
   res.json([...states.map(state=>({
