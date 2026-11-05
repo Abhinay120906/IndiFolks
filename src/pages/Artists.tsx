@@ -2,25 +2,32 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Search, Filter, Star, MapPin, Calendar, ArrowRight, Loader2 } from "lucide-react";
+import { Search, Filter, Star, MapPin, Calendar, ArrowRight, Loader2, Palette } from "lucide-react";
+import { useArtistOptions } from "@/hooks/useArtistOptions";
+import { artIllustration } from "@/lib/artIllustrations";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MainLayout from "@/components/layout/MainLayout";
 
-const artForms = ["All Art Forms", "Bharatanatyam", "Kathak", "Kathakali", "Odissi", "Manipuri", "Rajasthani Folk", "Baul Music", "Lavani", "Hindustani Classical"];
-const states = ["All States", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal"];
 
 const Artists = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [artists, setArtists] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error,setError] = useState("");
+  const {options,loading:optionsLoading,error:optionsError,refresh:refreshOptions}=useArtistOptions();
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
   const [selectedArtForm, setSelectedArtForm] = useState(searchParams.get("artForm") || "All Art Forms");
   const [selectedState, setSelectedState] = useState(searchParams.get("state") || "All States");
   const [sortBy, setSortBy] = useState("rating");
+  useEffect(()=>{
+    setSearchQuery(searchParams.get("search") || "");
+    setSelectedArtForm(searchParams.get("artForm") || "All Art Forms");
+    setSelectedState(searchParams.get("state") || "All States");
+  },[searchParams]);
 
   useEffect(() => {
     const fetchArtists = async () => {
@@ -33,10 +40,13 @@ const Artists = () => {
         queryParams.set("sort", sortBy);
 
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists?${queryParams.toString()}`);
+        if(!response.ok)throw Error("Unable to retrieve artists");
         const data = await response.json();
+        if(!Array.isArray(data))throw Error("Unexpected artists response");
         setArtists(data);
-      } catch (error) {
-        console.error("Error fetching artists:", error);
+        setError("");
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Unable to retrieve artists");
       } finally {
         setIsLoading(false);
       }
@@ -50,6 +60,21 @@ const Artists = () => {
   }, [searchQuery, selectedArtForm, selectedState, sortBy]);
 
   const filteredArtists = artists; // Already filtered by backend
+  const artFormChoices=[...new Set([
+    ...options.categories,
+    ...options.artForms.filter(name=>!options.categories.includes(name)),
+    ...options.customArtForms
+  ])];
+  const stateChoices=[...new Set([...options.states,...options.customStates])];
+  const changeFilter=(field:"search"|"state"|"artForm",value:string)=>{
+    if(field==="search")setSearchQuery(value);
+    if(field==="state")setSelectedState(value);
+    if(field==="artForm")setSelectedArtForm(value);
+    const updated=new URLSearchParams(searchParams);
+    if(!value||value=== "All States"||value=== "All Art Forms")updated.delete(field);
+    else updated.set(field,value);
+    setSearchParams(updated,{replace:true});
+  };
 
   return (
     <MainLayout>
@@ -77,7 +102,7 @@ const Artists = () => {
                   type="text"
                   placeholder="Search artists or art forms..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => changeFilter("search",e.target.value)}
                   className="h-12 border-border bg-card pl-12 text-base shadow-warm focus-visible:ring-primary"
                 />
               </div>
@@ -92,25 +117,24 @@ const Artists = () => {
           {/* Filters */}
           <div className="mb-8 flex flex-wrap items-center gap-4">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedArtForm} onValueChange={setSelectedArtForm}>
+            <Select value={selectedArtForm} onValueChange={value=>changeFilter("artForm",value)}>
               <SelectTrigger className="w-[180px] border-border">
                 <SelectValue placeholder="Art Form" />
               </SelectTrigger>
-              <SelectContent>
-                {artForms.map((artForm) => (
-                  <SelectItem key={artForm} value={artForm}>{artForm}</SelectItem>
-                ))}
+              <SelectContent className="max-h-80">
+                <SelectItem value="All Art Forms">All Art Forms</SelectItem>
+                {artFormChoices.map(name=><SelectItem key={name} value={name}>{name}</SelectItem>)}
+                <SelectItem value="Other">Other / Unlisted Arts</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select value={selectedState} onValueChange={setSelectedState}>
+            <Select value={selectedState} onValueChange={value=>changeFilter("state",value)}>
               <SelectTrigger className="w-[180px] border-border">
                 <SelectValue placeholder="State" />
               </SelectTrigger>
-              <SelectContent>
-                {states.map((state) => (
-                  <SelectItem key={state} value={state}>{state}</SelectItem>
-                ))}
+              <SelectContent className="max-h-80">
+                <SelectItem value="All States">All States and Territories</SelectItem>
+                {stateChoices.map(state=><SelectItem key={state} value={state}>{state}</SelectItem>)}
               </SelectContent>
             </Select>
 
@@ -131,8 +155,13 @@ const Artists = () => {
           </div>
 
           {/* Results Count */}
+          {optionsLoading&&<p className="mb-3 text-sm text-muted-foreground">Loading location and art-form filters…</p>}
+          {optionsError&&<div role="alert" className="mb-4 flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+            Couldn't load all filter options. <Button size="sm" variant="outline" onClick={refreshOptions}>Retry</Button>
+          </div>}
+          {error&&<p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
           <p className="mb-6 text-sm text-muted-foreground">
-            Showing {filteredArtists.length} artists
+            {isLoading ? "Finding artists…" : `Showing ${filteredArtists.length} artists`}
           </p>
 
           {/* Artists Grid */}
@@ -157,10 +186,16 @@ const Artists = () => {
                     <div className="relative aspect-[4/3] bg-gradient-to-br from-primary/10 to-accent/10">
                       <div className="absolute inset-0 flex items-center justify-center">
                         <img
-                          src={artist.profileImage || "https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg"}
+                          src={artist.profileImage || artist.gallery?.[0]?.url || artIllustration(artist.artCategory)}
                           className="h-full w-full object-cover"
-                          alt={artist.name}
+                          loading="lazy"
+                          alt={artist.profileImage || artist.gallery?.[0]?.url ? artist.name : `Illustrative ${artist.artCategory || "traditional art"} image (not this artist)`}
                         />
+                        {!artist.profileImage&&!artist.gallery?.[0]?.url&&(
+                          <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white">
+                            Illustrative category image
+                          </div>
+                        )}
                       </div>
                       {/* Availability Badge */}
                       <div className="absolute right-3 top-3">
@@ -168,7 +203,7 @@ const Artists = () => {
                           variant={artist.available ? "default" : "secondary"}
                           className={artist.available ? "bg-green-500 hover:bg-green-600" : ""}
                         >
-                          {artist.available ? "Available" : "Booked"}
+                          {artist.available ? "Accepting" : "Not accepting"}
                         </Badge>
                       </div>
                     </div>
@@ -184,7 +219,7 @@ const Artists = () => {
                         </div>
                         <div className="flex items-center gap-1 text-sm">
                           <Star className="h-4 w-4 fill-accent text-accent" />
-                          <span className="font-medium">{artist.rating || 4.5}</span>
+                          <span className="font-medium">{artist.reviewsCount ? artist.rating : "New"}</span>
                           <span className="text-muted-foreground">({artist.reviewsCount || 0})</span>
                         </div>
                       </div>
@@ -217,13 +252,14 @@ const Artists = () => {
           )}
 
           {/* No Results */}
-          {filteredArtists.length === 0 && (
+          {!isLoading&&!error&&filteredArtists.length === 0 && (
             <div className="py-12 text-center">
               <p className="text-lg text-muted-foreground">No artists found matching your filters.</p>
               <Button
                 variant="outline"
                 className="mt-4"
                 onClick={() => {
+                  setSearchParams({});
                   setSearchQuery("");
                   setSelectedArtForm("All Art Forms");
                   setSelectedState("All States");
