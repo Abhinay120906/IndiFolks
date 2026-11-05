@@ -17,10 +17,30 @@ This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It s
 4. Run `npm run dev`. Visit `http://localhost:5000/api/health` and verify `db` is `connected`.
 5. In the repository root create `.env.local` with `VITE_API_URL=http://localhost:5000`, run `npm ci` and `npm run dev`.
 6. Admin setup: set `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ characters) and optionally `ADMIN_NAME` in backend `.env`. Run `npm run create-admin` once from the backend folder. Delete the admin password from environment afterward. Public admin registration is intentionally disabled.
-7. For uploaded images, set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` on the backend. For now image selection is optional during artist signup, allowing the basic workflow without Cloudinary.
+7. Cloud image uploads are optional and require configuring a Cloudinary account (see the **Image uploads** section below). Without Cloudinary, artist text/profile/pricing changes still work, but image controls are disabled and an informative notice is displayed.
 8. Set `ENABLE_DEMO_PAYMENTS=true` in your backend `.env` **only** for a thesis demonstration, then restart the backend. Render's thesis-demo Blueprint is configured with this flag already. This records `demo_paid` separately from any actual payment. No Razorpay keys or PAN are needed. **Disable this flag in any real marketplace deployment.**
 
 **Do not upload your .env or share account passwords or API secrets in chat or on GitHub.**
+
+## Image uploads — Cloudinary (no keys in GitHub)
+
+The upload API is implemented, but it cannot store actual pictures until **you** create or connect a Cloudinary account and configure the credentials. Image files go directly from the browser to the backend, then to Cloudinary; their permanent HTTPS links are saved to MongoDB. Render's temporary filesystem is never used as image storage.
+
+1. Create or sign in to a Cloudinary account at https://cloudinary.com/ (a free plan may be available; check your account terms).
+2. In your Cloudinary Console, find **Cloud name**, **API Key** and **API Secret** (the console wording may change).
+3. On your computer, open `C:\\Users\\Pranay\\IndiFolks\\backend\\.env` and enter these values, leaving existing MongoDB and JWT settings intact:
+   ```dotenv
+   CLOUDINARY_CLOUD_NAME=your_cloud_name
+   CLOUDINARY_API_KEY=your_api_key
+   CLOUDINARY_API_SECRET=your_secret
+   ```
+4. Restart the local backend after saving `.env` so the new variables are loaded.
+5. To enable uploads on the Render-hosted backend, open the **indifolks-api** service → **Environment** in Render and add the same three values as secret environment variables. Save/redeploy. **Never paste any secret in this chat or GitHub**. A Cloudinary API Secret must never use the `VITE_` prefix.
+6. Sign in as an artist → **Dashboard → Edit Profile**. Choose a profile photo or gallery images, then click **Save Profile Changes**. Go to the public artist profile and refresh. Uploaded photos should persist across page refreshes and Render restarts.
+
+Uploads accept JPG, PNG or WebP, up to 4 MB each. Upload at most 8 gallery pictures per request and keep at most 24 gallery pictures in total. A previous profile photo and deleted gallery photos are removed from Cloudinary after successful database updates where possible. If Cloudinary is not configured, the dashboard tells you instead of pretending a photo was saved.
+
+**Profile Strength** is calculated by the backend from nine saved artist details: stage name, specialty, state, bio, experience, positive price, artistic story, profile photo, and at least one gallery image. Optional awards or pricing packages do not affect this score. The percentage and missing-item checklist update when artists save changes.
 
 ## Demo workflow
 
@@ -36,7 +56,7 @@ This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It s
 
 - GET `/api/health`, GET `/api/stats`
 - POST `/api/auth/register`, POST `/api/auth/login`, POST `/api/auth/admin-login`, GET `/api/auth/me`, PUT `/api/auth/profile`
-- GET `/api/artists`, GET `/api/artists/:id`, GET `/api/artists/me`, PUT `/api/artists/profile`, POST `/api/artists/:id/reviews`
+- GET `/api/artists`, GET `/api/artists/:id`, GET `/api/artists/me` (includes completeness and image upload status), PUT `/api/artists/profile` (multipart photo/gallery upload and deletion), POST `/api/artists/:id/reviews`, GET/PATCH `/api/artists/:id/my-review`
 - POST `/api/bookings`, GET `/api/bookings/my`, GET `/api/bookings/artist`, PATCH `/api/bookings/:id`
 - POST `/api/demo-payments/confirm` (customer-authenticated, ownership checked, opt-in `ENABLE_DEMO_PAYMENTS=true`, demo-only)
 - Legacy optional Razorpay TEST routes remain at POST `/api/payments/orders` and POST `/api/payments/verify` but are not used by the frontend
@@ -73,7 +93,7 @@ Then build with `npm ci && npm run build` and publish the `dist` output. Vite en
 - No public admin signup and no Aadhaar storage. Do not collect real identity documents for a thesis demo.
 - Never deploy live payment keys. Real-money marketplaces need separate onboarding, payment reconciliation/webhooks, refund handling, payout compliance, audit records, stronger concurrency controls and security reviews.
 - **No real payments are collected.** A `demo_paid` booking is proof of a simulated workflow only, not payment verification, a receipt of funds, or a payout obligation. Keep real-payment production services disabled or separately implemented. Image files require Cloudinary (the Render free filesystem is not persistent).
-- Booking date conflicts use simple database checks, not transactional per-day locking. Do not use for production reservations.
+- Booking requests and approvals check for whole-day conflicts, with a partial unique index for confirmed/completed event days. Production reservation systems still need comprehensive concurrency and cancellation testing.
 - The state cultural catalog is illustrative and the metadata is not a scholarly reference.
 - Free tiers, resource limits, and policies are subject to change.
 
@@ -82,7 +102,7 @@ Then build with `npm ci && npm run build` and publish the `dist` output. Vite en
 1. `npm run build` succeeds for the frontend, `node --check` succeeds for all backend files, and `npm test` passes in backend.
 2. New customer can register and log in, admin signup is denied, admin can approve artist.
 3. Artist can update profile/price/availability and accepts a request.
-4. Customer sees booking in /bookings and pays using Razorpay **test** mode.
+4. Customer sees confirmed booking in /bookings and records a **simulated demo payment** (no money charged).
 5. Wrong JWT, mismatched user role, invalid booking ID, and forged payment signature are rejected.
 6. Review access is limited to customers with a paid and completed booking.
 7. Atlas, Render and Pages health checks and real browser flows work.
