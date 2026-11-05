@@ -35,6 +35,7 @@ const ArtistProfile = () => {
   const [ownReview, setOwnReview] = useState<{rating: number; comment: string} | null>(null);
   const [isCheckingOwnReview, setIsCheckingOwnReview] = useState(false);
   const [reviewLookupFailed, setReviewLookupFailed] = useState(false);
+  const [isEditingReview, setIsEditingReview] = useState(false);
 
   useEffect(() => {
     const fetchArtist = async () => {
@@ -56,6 +57,7 @@ const ArtistProfile = () => {
     const token = localStorage.getItem("token");
     setOwnReview(null);
     setReviewLookupFailed(false);
+    setIsEditingReview(false);
     if (!id || user?.role !== "customer" || !token) {
       setIsCheckingOwnReview(false);
       return;
@@ -619,19 +621,31 @@ const ArtistProfile = () => {
                       <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
                         <p className="text-sm text-muted-foreground">Couldn't check your review history. Refresh the page or sign in again.</p>
                       </Card>
-                    ) : ownReview ? (
+                    ) : ownReview && !isEditingReview ? (
                       <Card className="rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950 shadow-sm">
-                        <h4 className="mb-2 text-lg font-bold">You've already reviewed this artist</h4>
-                        <div className="mb-2 flex items-center gap-1" aria-label={`Your rating: ${ownReview.rating} out of 5 stars`}>
+                        <h4 className="mb-2 text-lg font-bold">Your published review</h4>
+                        <div className="mb-3 flex items-center gap-1" aria-label={`Your rating: ${ownReview.rating} out of 5 stars`}>
                           {[1, 2, 3, 4, 5].map(star => (
                             <Star key={star} strokeWidth={1.8} className={`h-5 w-5 ${starStyle(star <= ownReview.rating)}`} />
                           ))}
                         </div>
-                        <p className="text-sm">Your review has been published. Thank you for sharing your experience.</p>
+                        <p className="mb-4 whitespace-pre-wrap break-words text-sm">{ownReview.comment || "No written comment."}</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-green-300 bg-white text-green-950 hover:bg-green-100"
+                          onClick={() => {
+                            setReviewRating(ownReview.rating);
+                            setReviewComment(ownReview.comment);
+                            setIsEditingReview(true);
+                          }}
+                        >
+                          Edit review
+                        </Button>
                       </Card>
                     ) : (
                     <Card className="rounded-3xl border-none bg-card shadow-lg p-6">
-                      <h4 className="font-bold text-lg mb-4">Write a Review</h4>
+                      <h4 className="font-bold text-lg mb-4">{isEditingReview ? "Edit your review" : "Write a Review"}</h4>
                       <div className="space-y-4">
                         <div>
                           <p className="mb-2 text-sm font-medium text-foreground">Your rating</p>
@@ -640,6 +654,7 @@ const ArtistProfile = () => {
                               <button
                                 key={star}
                                 type="button"
+                                disabled={isSubmittingReview}
                                 aria-label={`Rate ${star} ${star === 1 ? "star" : "stars"}`}
                                 aria-pressed={star === reviewRating}
                                 onClick={() => setReviewRating(star)}
@@ -656,6 +671,8 @@ const ArtistProfile = () => {
                           <textarea
                             id="review-comment"
                             value={reviewComment}
+                            maxLength={1000}
+                            disabled={isSubmittingReview}
                             onChange={(e) => setReviewComment(e.target.value)}
                             placeholder="Share your experience..."
                             className="w-full min-h-[100px] rounded-xl border border-border bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -668,8 +685,10 @@ const ArtistProfile = () => {
                             setIsSubmittingReview(true);
                             try {
                               const token = localStorage.getItem('token');
-                              const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/${artist._id}/reviews`, {
-                                method: 'POST',
+                              const response = await fetch(
+                                `${import.meta.env.VITE_API_URL}/api/artists/${artist._id}${isEditingReview ? "/my-review" : "/reviews"}`,
+                                {
+                                method: isEditingReview ? 'PATCH' : 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
                                   'Authorization': `Bearer ${token}`
@@ -678,11 +697,12 @@ const ArtistProfile = () => {
                               });
                               const data = await response.json();
                               if (!response.ok) throw new Error(data?.message || "Failed to submit review");
-                              setArtist(data);
-                              setOwnReview({ rating: reviewRating, comment: reviewComment.trim() });
+                              setArtist(isEditingReview ? data.artist : data);
+                              setOwnReview(isEditingReview ? data.review : { rating: reviewRating, comment: reviewComment.trim() });
+                              setIsEditingReview(false);
                               setReviewComment("");
                               setReviewRating(0);
-                              toast.success("Review submitted!");
+                              toast.success(isEditingReview ? "Review updated!" : "Review submitted!");
                             } catch (e) {
                               toast.error(e instanceof Error ? e.message : "Failed to submit review");
                             } finally {
@@ -691,8 +711,23 @@ const ArtistProfile = () => {
                           }}
                         >
                           {isSubmittingReview ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Submit Review
+                          {isEditingReview ? "Save changes" : "Submit Review"}
                         </Button>
+                        {isEditingReview && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full rounded-full"
+                            disabled={isSubmittingReview}
+                            onClick={() => {
+                              setIsEditingReview(false);
+                              setReviewRating(0);
+                              setReviewComment("");
+                            }}
+                          >
+                            Cancel editing
+                          </Button>
+                        )}
                       </div>
                     </Card>
                     )}
