@@ -4,12 +4,13 @@ import { User } from '../models/User.js';
 import { asyncRoute,badRequest,validId } from '../lib/helpers.js';
 import { indiaDayKey,requestedIndiaDay,dayRange,bookingDateForDay } from '../lib/bookingDates.js';
 import { requireAuth,requireRole } from '../middleware/auth.js';
+import { canBookArtist } from '../lib/marketplaceAccess.js';
 
 export const bookingsRouter=Router();
 bookingsRouter.use(requireAuth);
 const populate=q=>q.populate('customer','name email profileImage').populate('artist','name email profileImage artForm specialty');
 
-bookingsRouter.post('/',requireRole('customer'),asyncRoute(async(req,res)=>{
+bookingsRouter.post('/',requireRole('customer','artist'),asyncRoute(async(req,res)=>{
   const {artistId,date,message='',location,pricingPackage}=req.body;
   const eventDay=requestedIndiaDay(date);
   if(!validId(artistId)||!eventDay||eventDay<=indiaDayKey(new Date())||
@@ -17,6 +18,7 @@ bookingsRouter.post('/',requireRole('customer'),asyncRoute(async(req,res)=>{
     typeof message!=='string'||message.length>2000) {
     return badRequest(res,'Select a future available date and provide an event location');
   }
+  if(!canBookArtist(req.user,artistId)) return res.status(403).json({message:'You cannot book your own artist profile'});
   const artist=await User.findOne({_id:artistId,role:'artist',isApproved:true,approvalStatus:'approved',available:true});
   if(!artist) return res.status(404).json({message:'Artist unavailable'});
   let price=artist.price,selected=null;
@@ -38,7 +40,7 @@ bookingsRouter.post('/',requireRole('customer'),asyncRoute(async(req,res)=>{
 }));
 
 bookingsRouter.get('/artist',requireRole('artist'),asyncRoute(async(req,res)=>res.json(await populate(Booking.find({artist:req.user._id}).sort({createdAt:-1}).limit(500)))));
-bookingsRouter.get('/my',requireRole('customer'),asyncRoute(async(req,res)=>res.json(await populate(Booking.find({customer:req.user._id}).sort({createdAt:-1}).limit(500)))));
+bookingsRouter.get('/my',requireRole('customer','artist'),asyncRoute(async(req,res)=>res.json(await populate(Booking.find({customer:req.user._id}).sort({createdAt:-1}).limit(500)))));
 bookingsRouter.patch('/:id',requireRole('artist','admin'),asyncRoute(async(req,res)=>{
   if(!validId(req.params.id)) return badRequest(res,'Invalid booking');
   const booking=await Booking.findById(req.params.id);
