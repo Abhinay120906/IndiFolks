@@ -6,11 +6,12 @@ import { imageUpload, uploadImage, deleteImage, imageStorageConfigured } from '.
 import { profileCompleteness } from '../lib/profileCompleteness.js';
 import { asyncRoute, badRequest, validId, parseJson, safeNumber } from '../lib/helpers.js';
 import { indiaDayKey,monthRange } from '../lib/bookingDates.js';
+import { ART_FORMS, ART_CATEGORIES, STATE_NAMES, normalizeState, categoryForArt, artMatches, normalizeText } from '../lib/artistCatalog.js';
 
 export const artistsRouter = Router();
 function displayArtist(user) {
   const source = typeof user.toJSON === 'function' ? user.toJSON() : user;
-  const u = { ...source };
+  const u = { ...source, state: normalizeState(source.state), artForm: source.artForm || source.specialty || '' };
   delete u.passwordHash;
   delete u.email;
   delete u.profileImagePublicId;
@@ -19,26 +20,45 @@ function displayArtist(user) {
   const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0;
   return { ...u, reviews, rating: Math.round(rating * 10) / 10,
     reviewsCount: reviews.length, totalReviews: reviews.length,
-    completeness: profileCompleteness(u),
+    completeness: profileCompleteness(u), artCategory: categoryForArt(u.artForm),
     adminFee: 0, totalPrice: u.price || 0 };
 }
+artistsRouter.get('/options',asyncRoute(async(_req,res)=>{
+  const artists=await User.find({role:'artist',approvalStatus:'approved',isApproved:true})
+    .select('state artForm specialty').limit(3000).lean();
+  const knownStates=new Set(STATE_NAMES.map(normalizeText));
+  const knownForms=new Set(ART_FORMS.map(normalizeText));
+  const customStates=[...new Set(artists.map(a=>normalizeState(a.state))
+    .filter(name=>name&&name.length<=100&&!knownStates.has(normalizeText(name))))].sort();
+  const customArtForms=[...new Set(artists.map(a=>a.artForm||a.specialty)
+    .filter(name=>typeof name==='string'&&name.trim().length>=2&&name.length<=100&&!knownForms.has(normalizeText(name)))
+    .map(name=>name.trim()))].sort();
+  res.setHeader('Cache-Control','public, max-age=60');
+  res.json({states:STATE_NAMES,artForms:ART_FORMS,categories:ART_CATEGORIES,customStates,customArtForms});
+}));
+
 artistsRouter.get('/',asyncRoute(async(req,res)=>{
-  const filter={role:'artist',approvalStatus:'approved',isApproved:true};
-  if(typeof req.query.state==='string' && req.query.state!=='All States') filter.state=req.query.state;
-  if(typeof req.query.artForm==='string' && req.query.artForm!=='All Art Forms') filter.$or=[{artForm:req.query.artForm},{specialty:req.query.artForm}];
-  if(typeof req.query.search==='string' && req.query.search.trim()) {
-    const term=req.query.search.trim().slice(0,80).replace(/[.*+?^$()|[\]{}]/g,'\\$&');
-    const pattern=new RegExp(term,'i');
-    filter.$and=[{$or:[{name:pattern},{specialty:pattern},{artForm:pattern},{state:pattern}]}];
-  }
-  const artists=(await User.find(filter).limit(500).lean()).map(displayArtist);
+  const artists=await User.find({role:'artist',approvalStatus:'approved',isApproved:true}).limit(3000).lean();
+  const stateFilter=normalizeState(req.query.state||'');
+  const formFilter=typeof req.query.artForm==='string'?req.query.artForm:'';
+  const search=normalizeText(req.query.search||'').slice(0,80);
+  const matching=artists.filter(artist=>{
+    const location=normalizeState(artist.state);
+    const artForm=artist.artForm||artist.specialty||'';
+    if(stateFilter&&stateFilter!=='All States'&&normalizeText(location)!==normalizeText(stateFilter))return false;
+    if(formFilter&&formFilter!=='All Art Forms'&&!artMatches(artForm,formFilter)&&
+       !artMatches(artist.specialty||'',formFilter))return false;
+    if(search&&![artist.name,artist.specialty,artForm,categoryForArt(artForm),location,artist.bio]
+      .some(value=>normalizeText(value).includes(search)))return false;
+    return true;
+  }).map(displayArtist);
   const sort=req.query.sort;
-  if(sort==='reviews') artists.sort((a,b)=>b.totalReviews-a.totalReviews);
-  else if(sort==='price-low') artists.sort((a,b)=>a.price-b.price);
-  else if(sort==='price-high') artists.sort((a,b)=>b.price-a.price);
-  else artists.sort((a,b)=>b.rating-a.rating);
+  if(sort==='reviews') matching.sort((a,b)=>b.totalReviews-a.totalReviews);
+  else if(sort==='price-low') matching.sort((a,b)=>a.price-b.price);
+  else if(sort==='price-high') matching.sort((a,b)=>b.price-a.price);
+  else matching.sort((a,b)=>b.rating-a.rating);
   const limit=Math.min(100,Math.max(1,Number(req.query.limit)||100));
-  res.json(artists.slice(0,limit));
+  res.json(matching.slice(0,limit));
 }));
 artistsRouter.get('/me',requireAuth,requireRole('artist'),(req,res)=>
   res.json({ ...displayArtist(req.user), imageUploadsEnabled:imageStorageConfigured() }));
