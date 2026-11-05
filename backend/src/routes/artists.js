@@ -69,6 +69,15 @@ artistsRouter.put('/profile',requireAuth,requireRole('artist'),imageUpload.array
   }
   await user.save();res.json(displayArtist(user));
 }));
+// Return only the authenticated customer's own review; public artist responses
+// intentionally omit customer IDs to protect reviewers' privacy.
+artistsRouter.get('/:id/my-review',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+  if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
+  const artist=await User.findOne({_id:req.params.id,role:'artist',isApproved:true}).select('reviews');
+  if(!artist) return res.status(404).json({message:'Artist not found'});
+  const review=artist.reviews.find(r=>String(r.customer)===String(req.user._id));
+  res.json({review:review?{rating:review.rating,comment:review.comment,createdAt:review.createdAt}:null});
+}));
 artistsRouter.get('/:id',asyncRoute(async(req,res)=>{
   if(!validId(req.params.id)) return badRequest(res,'Invalid artist ID');
   const user=await User.findOne({_id:req.params.id,role:'artist',approvalStatus:'approved',isApproved:true});
