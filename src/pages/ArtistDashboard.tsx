@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     Calendar, CheckCircle2, XCircle, Clock,
     User, MessageSquare, IndianRupee, Loader2,
@@ -22,14 +22,19 @@ import { Switch } from "@/components/ui/switch";
 import ArtistTaxonomyFields from "@/components/ArtistTaxonomyFields";
 
 const ArtistDashboard = () => {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [bookings, setBookings] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [profile, setProfile] = useState<any>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isStatusLoading, setIsStatusLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState("overview");
+    const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") === "profile" ? "profile" : "overview");
+
+    useEffect(() => {
+        if (searchParams.get("tab") === "profile") setActiveTab("profile");
+    }, [searchParams]);
 
     // Form states
     const [name, setName] = useState("");
@@ -54,7 +59,7 @@ const ArtistDashboard = () => {
             return;
         }
         fetchData();
-    }, [user, navigate]);
+    }, [user?._id, user?.role, navigate]);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -176,6 +181,14 @@ const ArtistDashboard = () => {
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.message || `Unable to update profile (HTTP ${response.status})`);
             setProfile(data);
+            updateUser({
+                name: data.name,
+                bio: data.bio || "",
+                state: data.state || "",
+                artForm: data.artForm || "",
+                specialty: data.specialty || "",
+                profileImage: data.profileImage || ""
+            });
             setName(data.name || "");
             setBio(data.bio || "");
             setSpecialty(data.specialty || "");
@@ -431,7 +444,7 @@ const ArtistDashboard = () => {
                                     {profile?.approvalStatus === 'draft' && (
                                         <div className="pt-4 border-t">
                                             <Button
-                                                className="w-full bg-gradient-saffron hover:opacity-90 shadow-lg mb-2"
+                                                className="mb-2 w-full bg-[#c65a2d] font-semibold text-white shadow-lg hover:bg-[#a44721] hover:text-white"
                                                 onClick={submitForApproval}
                                                 disabled={isStatusLoading}
                                             >
@@ -445,7 +458,10 @@ const ArtistDashboard = () => {
                                     )}
 
                                     <Button variant="outline" className="w-full" onClick={() => setActiveTab("profile")}>
-                                        Manage Profile
+                                        Edit Profile
+                                    </Button>
+                                    <Button variant="outline" asChild className="w-full">
+                                        <Link to="/profile">View Saved Profile</Link>
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -763,7 +779,7 @@ const ArtistDashboard = () => {
                             </Card>
 
                             <div className="flex sticky bottom-8 justify-end">
-                                <Button type="submit" size="lg" disabled={isSaving} className="bg-gradient-saffron px-8 shadow-xl hover:shadow-2xl hover:scale-105 transition-all">
+                                <Button type="submit" size="lg" disabled={isSaving} className="bg-[#c65a2d] px-8 font-semibold text-white shadow-lg hover:bg-[#a44721] hover:text-white focus-visible:ring-[#a44721] disabled:text-white">
                                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                     Save Profile Changes
                                 </Button>
