@@ -329,7 +329,7 @@ const ArtistProfile = () => {
                 <div className="flex gap-3">
                   <Button
                     size="lg"
-                    className="flex-1 bg-gradient-saffron text-lg hover:opacity-90"
+                    className="flex-1 bg-[#c65a2d] text-lg font-semibold text-white hover:bg-[#a44721] hover:text-white focus-visible:ring-[#a44721]"
                     onClick={() => {
                       goToAvailability();
                     }}
@@ -500,7 +500,7 @@ const ArtistProfile = () => {
                           <span className="text-3xl font-extrabold">₹{(Math.round((pkg.price || 0) * 1.1)).toLocaleString("en-IN")}</span>
                           <span className="text-muted-foreground text-xs">fixed rate</span>
                         </div>
-                        <Button className="w-full rounded-full bg-primary hover:bg-primary/90" onClick={() => {
+                        <Button className="w-full rounded-full bg-[#c65a2d] font-semibold text-white hover:bg-[#a44721] hover:text-white" onClick={() => {
                           goToAvailability(pkg);
                         }}>
                           Book This Package
