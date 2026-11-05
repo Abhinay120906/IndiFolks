@@ -110,12 +110,14 @@ const ArtistDashboard = () => {
 
             if (response.ok) {
                 toast.success(`Booking ${status} successfully`);
-                fetchBookings();
+                void fetchBookings();
             } else {
-                toast.error("Failed to update status");
+                const result = await response.json().catch(() => null);
+                const explanation = typeof result?.message === 'string' ? result.message : 'Request rejected';
+                toast.error(`Booking update failed (HTTP ${response.status}): ${explanation}`);
             }
         } catch (error) {
-            toast.error("An error occurred");
+            toast.error(error instanceof Error ? error.message : "Could not reach the backend");
         }
     };
 
