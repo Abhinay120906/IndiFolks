@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { Booking } from '../models/Booking.js';
 import { User } from '../models/User.js';
-import { asyncRoute,badRequest,validId,isDateInFuture } from '../lib/helpers.js';
+import { asyncRoute,badRequest,validId } from '../lib/helpers.js';
+import { indiaDayKey,requestedIndiaDay,dayRange,bookingDateForDay } from '../lib/bookingDates.js';
 import { requireAuth,requireRole } from '../middleware/auth.js';
 
 export const bookingsRouter=Router();
@@ -10,7 +11,12 @@ const populate=q=>q.populate('customer','name email profileImage').populate('art
 
 bookingsRouter.post('/',requireRole('customer'),asyncRoute(async(req,res)=>{
   const {artistId,date,message='',location,pricingPackage}=req.body;
-  if(!validId(artistId)||!isDateInFuture(date)||typeof location!=='string'||!location.trim()||location.length>500||typeof message!=='string'||message.length>2000) return badRequest(res,'Provide artist, future date and location');
+  const eventDay=requestedIndiaDay(date);
+  if(!validId(artistId)||!eventDay||eventDay<=indiaDayKey(new Date())||
+    typeof location!=='string'||!location.trim()||location.length>500||
+    typeof message!=='string'||message.length>2000) {
+    return badRequest(res,'Select a future available date and provide an event location');
+  }
   const artist=await User.findOne({_id:artistId,role:'artist',isApproved:true,approvalStatus:'approved',available:true});
   if(!artist) return res.status(404).json({message:'Artist unavailable'});
   let price=artist.price,selected=null;
@@ -20,8 +26,14 @@ bookingsRouter.post('/',requireRole('customer'),asyncRoute(async(req,res)=>{
     price=selected.price;
   }
   if(!Number.isFinite(price)||price<=0) return badRequest(res,'Artist needs a valid price');
-  if(await Booking.exists({artist:artistId,date:new Date(date),status:{$in:['confirmed','completed']}})) return res.status(409).json({message:'Date is already booked'});
-  const b=await Booking.create({customer:req.user._id,artist:artist._id,date:new Date(date),location:location.trim(),message,price,pricingPackage:selected?{name:selected.name,description:selected.description,duration:selected.duration}:undefined});
+  const {start,end}=dayRange(eventDay);
+  if(await Booking.exists({artist:artist._id,date:{$gte:start,$lt:end},status:{$in:['confirmed','completed']}})) {
+    return res.status(409).json({message:'This date is already booked. Please choose a green date from the calendar.'});
+  }
+  const b=await Booking.create({customer:req.user._id,artist:artist._id,
+    date:bookingDateForDay(eventDay),eventDay,
+    location:location.trim(),message,price,
+    pricingPackage:selected?{name:selected.name,description:selected.description,duration:selected.duration}:undefined});
   res.status(201).json(await populate(Booking.findById(b._id)));
 }));
 
@@ -34,7 +46,14 @@ bookingsRouter.patch('/:id',requireRole('artist','admin'),asyncRoute(async(req,r
   if(req.user.role==='artist'&&String(booking.artist)!==String(req.user._id)) return res.status(403).json({message:'Access denied'});
   const {status}=req.body;
   if(status==='confirmed'&&booking.status==='pending') {
-    if(await Booking.exists({_id:{$ne:booking._id},artist:booking.artist,date:booking.date,status:{$in:['confirmed','completed']}})) return res.status(409).json({message:'Date already booked'});
+    const eventDay=booking.eventDay||indiaDayKey(booking.date);
+    const range=dayRange(eventDay);
+    if(!range) return badRequest(res,'Invalid event date');
+    if(await Booking.exists({_id:{$ne:booking._id},artist:booking.artist,
+      date:{$gte:range.start,$lt:range.end},status:{$in:['confirmed','completed']}})) {
+      return res.status(409).json({message:'The artist already has a confirmed event on this date'});
+    }
+    booking.eventDay=eventDay;
     booking.status='confirmed';
   } else if(status==='cancelled'&&['pending','confirmed'].includes(booking.status)) {
     if(['paid','demo_paid'].includes(booking.paymentStatus)) return res.status(409).json({message:'Paid or simulated-paid booking cannot be cancelled through this endpoint'});
