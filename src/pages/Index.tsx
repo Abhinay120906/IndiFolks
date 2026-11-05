@@ -35,14 +35,13 @@ const steps = [
 ];
 
 const Index = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [artistCount, setArtistCount] = useState(0);
   const [featuredArtists,setFeaturedArtists] = useState<any[]>([]);
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === "artist") navigate("/artist/dashboard");
     fetch(`${import.meta.env.VITE_API_URL}/api/stats`)
       .then((r) => r.json())
       .then((r) => { if(r?.success && typeof r?.data?.totalArtists === "number") setArtistCount(r.data.totalArtists); })
@@ -51,7 +50,7 @@ const Index = () => {
       .then(r=>r.ok?r.json():[])
       .then(artists=>{if(Array.isArray(artists))setFeaturedArtists(artists);})
       .catch(()=>setFeaturedArtists([]));
-  }, [isAuthenticated, user, navigate]);
+  }, []);
 
   const submitSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -68,6 +67,15 @@ const Index = () => {
   return (
     <MainLayout>
       <main className="if-home">
+        {user?.role === "artist" && <div className="border-b border-orange-200 bg-orange-50 py-3">
+          <div className="if-container flex flex-wrap items-center justify-between gap-3 text-sm text-[#743a20]">
+            <span><strong>Welcome back, {user.name}.</strong> Discover other performers and book artists for your own events.</span>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/artist/dashboard" className="font-semibold underline underline-offset-4">Manage my artist dashboard</Link>
+              <Link to="/bookings" className="font-semibold underline underline-offset-4">My outgoing bookings</Link>
+            </div>
+          </div>
+        </div>}
         <section className="if-hero">
           <img src={heroImage} alt="Indian folk performance" className="if-hero-image" />
           <div className="if-hero-overlay" />
@@ -149,7 +157,7 @@ const Index = () => {
         </section>
 
         <section className="if-cta">
-          <div className="if-container if-cta-box"><div><div className="if-eyebrow">For artists & performers</div><h2>Your art deserves a bigger stage.</h2><p>Create a profile, showcase your work and let event hosts discover you.</p></div><Link className="if-primary-button" to="/register?role=artist">Join IndiFolks <ArrowRight size={17}/></Link></div>
+          <div className="if-container if-cta-box"><div><div className="if-eyebrow">For artists & performers</div><h2>Your art deserves a bigger stage.</h2><p>{user?.role === "artist" ? "Manage your professional profile and make the most of the IndiFolks community." : "Create a profile, showcase your work and let event hosts discover you."}</p></div><Link className="if-primary-button" to={user?.role === "artist" ? "/artist/dashboard" : "/register?role=artist"}>{user?.role === "artist" ? "My Artist Dashboard" : "Join IndiFolks"} <ArrowRight size={17}/></Link></div>
         </section>
       </main>
     </MainLayout>
