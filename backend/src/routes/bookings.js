@@ -37,9 +37,9 @@ bookingsRouter.patch('/:id',requireRole('artist','admin'),asyncRoute(async(req,r
     if(await Booking.exists({_id:{$ne:booking._id},artist:booking.artist,date:booking.date,status:{$in:['confirmed','completed']}})) return res.status(409).json({message:'Date already booked'});
     booking.status='confirmed';
   } else if(status==='cancelled'&&['pending','confirmed'].includes(booking.status)) {
-    if(booking.paymentStatus==='paid') return res.status(409).json({message:'Paid booking requires admin refund flow'});
+    if(['paid','demo_paid'].includes(booking.paymentStatus)) return res.status(409).json({message:'Paid or simulated-paid booking cannot be cancelled through this endpoint'});
     booking.status='cancelled';
-  } else if(status==='completed'&&booking.status==='confirmed'&&booking.paymentStatus==='paid') {
+  } else if(status==='completed'&&booking.status==='confirmed'&&(booking.paymentStatus==='paid'||(process.env.ENABLE_DEMO_PAYMENTS==='true'&&booking.paymentStatus==='demo_paid'))) {
     booking.status='completed';
   } else return res.status(409).json({message:'Invalid booking transition'});
   await booking.save();res.json(await populate(Booking.findById(booking._id)));
