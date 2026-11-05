@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { User } from '../models/User.js';
 import { Booking } from '../models/Booking.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { imageUpload, uploadImage } from '../lib/upload.js';
+import { imageUpload, uploadImage, deleteImage, imageStorageConfigured } from '../lib/upload.js';
+import { profileCompleteness } from '../lib/profileCompleteness.js';
 import { asyncRoute, badRequest, validId, parseJson, safeNumber } from '../lib/helpers.js';
 import { indiaDayKey,monthRange } from '../lib/bookingDates.js';
 
@@ -18,6 +19,7 @@ function displayArtist(user) {
   const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0;
   return { ...u, reviews, rating: Math.round(rating * 10) / 10,
     reviewsCount: reviews.length, totalReviews: reviews.length,
+    completeness: profileCompleteness(u),
     adminFee: 0, totalPrice: u.price || 0 };
 }
 artistsRouter.get('/',asyncRoute(async(req,res)=>{
@@ -38,13 +40,19 @@ artistsRouter.get('/',asyncRoute(async(req,res)=>{
   const limit=Math.min(100,Math.max(1,Number(req.query.limit)||100));
   res.json(artists.slice(0,limit));
 }));
-artistsRouter.get('/me',requireAuth,requireRole('artist'),(req,res)=>res.json(displayArtist(req.user)));
-artistsRouter.put('/profile',requireAuth,requireRole('artist'),imageUpload.array('images',8),asyncRoute(async(req,res)=>{
+artistsRouter.get('/me',requireAuth,requireRole('artist'),(req,res)=>
+  res.json({ ...displayArtist(req.user), imageUploadsEnabled:imageStorageConfigured() }));
+
+artistsRouter.put('/profile',requireAuth,requireRole('artist'),
+  imageUpload.fields([{name:'profileImage',maxCount:1},{name:'images',maxCount:8}]),
+  asyncRoute(async(req,res)=>{
   const user=req.user;
   for(const key of ['name','bio','specialty','experience','story','awards','state','artForm']) {
     if(req.body[key]!==undefined) {
       if(typeof req.body[key]!=='string') return badRequest(res,'Invalid '+key);
-      user[key]=req.body[key].slice(0,key==='story'?5000:key==='bio'?3000:500);
+      if(key==='name'&&!req.body[key].trim()) return badRequest(res,'Artist name is required');
+      const max=key==='story'?5000:key==='bio'?3000:key==='name'?100:500;
+      user[key]=req.body[key].trim().slice(0,max);
     }
   }
   if(req.body.price!==undefined) {
@@ -60,15 +68,46 @@ artistsRouter.put('/profile',requireAuth,requireRole('artist'),imageUpload.array
     user.pricing={packages:p.packages.map(x=>({name:String(x.name).slice(0,100),duration:String(x.duration||'').slice(0,100),description:String(x.description||'').slice(0,500),price:Number(x.price)})),addOns:[]};
   }
   const removed=parseJson(req.body.galleryToDelete,[]);
-  if(Array.isArray(removed)&&removed.length) user.gallery=user.gallery.filter(g=>!removed.includes(String(g._id)));
-  for(const file of req.files||[]) {
-    const image=await uploadImage(file);
-    user.gallery.push({url:image.url,publicId:image.publicId,type:'image',title:file.originalname.slice(0,100)});
+  if(!Array.isArray(removed)||removed.length>24||removed.some(id=>typeof id!=='string')) return badRequest(res,'Invalid gallery removal');
+  const removedImages=user.gallery.filter(g=>removed.includes(String(g._id)));
+  const galleryFiles=req.files?.images||[];
+  const avatarFile=req.files?.profileImage?.[0];
+  if(user.gallery.length-removedImages.length+galleryFiles.length>24) return badRequest(res,'Maximum 24 gallery images allowed');
+  if((galleryFiles.length||avatarFile)&&!imageStorageConfigured()) {
+    return res.status(503).json({message:'Cloudinary storage is not configured. Add Cloudinary credentials to the backend to upload images.'});
   }
-  if(req.body.approvalStatus==='pending'&&['draft','rejected'].includes(user.approvalStatus)) {
-    user.approvalStatus='pending';user.isApproved=false;
+  const newlyUploaded=[];
+  const previousAvatar=user.profileImagePublicId;
+  try {
+    if(avatarFile){
+      const img=await uploadImage(avatarFile);
+      newlyUploaded.push(img.publicId);
+      user.profileImage=img.url;
+      user.profileImagePublicId=img.publicId;
+    }
+    const uploadedGallery=[];
+    for(const file of galleryFiles) {
+      const img=await uploadImage(file);
+      newlyUploaded.push(img.publicId);
+      uploadedGallery.push({url:img.url,publicId:img.publicId,type:'image',title:file.originalname.slice(0,100)});
+    }
+    user.gallery=user.gallery.filter(g=>!removed.includes(String(g._id)));
+    user.gallery.push(...uploadedGallery);
+    if(req.body.approvalStatus==='pending'&&['draft','rejected'].includes(user.approvalStatus)) {
+      user.approvalStatus='pending';user.isApproved=false;
+    }
+    await user.save();
+  } catch(err) {
+    // Failed writes must not leak newly uploaded files into cloud storage.
+    await Promise.allSettled(newlyUploaded.map(deleteImage));
+    throw err;
   }
-  await user.save();res.json(displayArtist(user));
+  // Delete obsolete media only AFTER the database has saved the new references.
+  const staleIds=removedImages.map(g=>g.publicId).filter(Boolean);
+  if(avatarFile&&previousAvatar&&previousAvatar!==user.profileImagePublicId) staleIds.push(previousAvatar);
+  const deleted=await Promise.allSettled(staleIds.map(deleteImage));
+  for(const result of deleted) if(result.status==='rejected') console.error('Image cleanup failed:',result.reason?.message);
+  res.json({ ...displayArtist(user), imageUploadsEnabled:imageStorageConfigured() });
 }));
 // Return only the authenticated customer's own review; public artist responses
 // intentionally omit customer IDs to protect reviewers' privacy.
