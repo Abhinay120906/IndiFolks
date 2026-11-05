@@ -6,7 +6,11 @@ export const imageUpload = multer({
   limits: { fileSize: 4 * 1024 * 1024, files: 8 },
   fileFilter(_req, file, cb) {
     const allowed = ['image/png', 'image/jpeg', 'image/webp'];
-    if (!allowed.includes(file.mimetype)) return cb(new Error('Only JPG, PNG and WebP images are supported'));
+    if (!allowed.includes(file.mimetype)) {
+      const error = new Error('Only JPG, PNG and WebP images are supported');
+      error.status = 415;
+      return cb(error);
+    }
     cb(null, true);
   }
 });
