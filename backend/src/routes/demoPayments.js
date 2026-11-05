@@ -9,7 +9,8 @@ export const demoPaymentsRouter = Router();
 
 // Deliberately unavailable unless the project owner opts in to demo-only payments.
 // Never put payment-card details, banking details, or live transaction credentials here.
-demoPaymentsRouter.use(requireAuth, requireRole('customer'));
+demoPaymentsRouter.use(requireAuth, requireRole('customer', 'artist'));
+// Artists may also be event hosts; payment ownership is still verified by booking.customer.
 demoPaymentsRouter.post('/confirm', asyncRoute(async (req, res) => {
   if (process.env.ENABLE_DEMO_PAYMENTS !== 'true') {
     return res.status(503).json({ message: 'Demonstration payments are disabled on this server' });
