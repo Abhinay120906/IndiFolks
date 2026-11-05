@@ -11,6 +11,7 @@ export interface User {
     bio?: string;
     state?: string;
     specialty?: string;
+    artForm?: string;
     available?: boolean;
     token?: string;
 }
