@@ -11,8 +11,9 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Camera, Loader2 } from 'lucide-react';
 import ArtistTaxonomyFields from '@/components/ArtistTaxonomyFields';
+import ArtistAccountProfile from '@/pages/ArtistAccountProfile';
 
-export default function Profile() {
+function CustomerProfile() {
     const { user, login } = useAuth();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -238,4 +239,11 @@ export default function Profile() {
             <Footer />
         </div>
     );
+}
+
+export default function Profile() {
+    const { user, isLoading } = useAuth();
+    if (isLoading) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" aria-label="Loading account" /></div>;
+    if (user?.role === 'artist') return <ArtistAccountProfile />;
+    return <CustomerProfile />;
 }
