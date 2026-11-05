@@ -28,7 +28,7 @@ The upload API is implemented, but it cannot store actual pictures until **you**
 
 1. Create or sign in to a Cloudinary account at https://cloudinary.com/ (a free plan may be available; check your account terms).
 2. In your Cloudinary Console, find **Cloud name**, **API Key** and **API Secret** (the console wording may change).
-3. On your computer, open `C:\\Users\\Pranay\\IndiFolks\\backend\\.env` and enter these values, leaving existing MongoDB and JWT settings intact:
+3. On your computer, open `backend/.env` inside your cloned IndiFolks repository and enter these values, leaving existing MongoDB and JWT settings intact:
    ```dotenv
    CLOUDINARY_CLOUD_NAME=your_cloud_name
    CLOUDINARY_API_KEY=your_api_key
