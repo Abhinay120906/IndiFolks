@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Camera, Loader2 } from 'lucide-react';
+import ArtistTaxonomyFields from '@/components/ArtistTaxonomyFields';
 
 export default function Profile() {
     const { user, login } = useAuth();
@@ -21,6 +22,7 @@ export default function Profile() {
     const [bio, setBio] = useState(user?.bio || '');
     const [stateLocation, setStateLocation] = useState(user?.state || '');
     const [specialty, setSpecialty] = useState(user?.specialty || '');
+    const [artForm,setArtForm] = useState((user as any)?.artForm || user?.specialty || '');
 
     // Image state
     const [previewUrl, setPreviewUrl] = useState<string | null>(user?.profileImage || null);
@@ -33,6 +35,7 @@ export default function Profile() {
             setBio(user.bio || '');
             setStateLocation(user.state || '');
             setSpecialty(user.specialty || '');
+            setArtForm((user as any).artForm || user.specialty || '');
             setPreviewUrl(user.profileImage || null);
         }
     }, [user]);
@@ -69,6 +72,7 @@ export default function Profile() {
                 formData.append('bio', bio);
                 formData.append('state', stateLocation);
                 formData.append('specialty', specialty);
+                formData.append('artForm', artForm);
             }
 
             if (selectedFile) {
@@ -192,26 +196,15 @@ export default function Profile() {
                             {user.role === 'artist' && (
                                 <div className="space-y-4 pt-4 border-t border-border mt-4">
                                     <h3 className="font-semibold text-lg text-foreground">Artist Details</h3>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="specialty">Specialty</Label>
-                                        <Input
-                                            id="specialty"
-                                            value={specialty}
-                                            onChange={(e) => setSpecialty(e.target.value)}
-                                            placeholder="e.g. Classical Dance, Vocals, Pottery"
-                                            className="bg-background"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="stateLocation">State</Label>
-                                        <Input
-                                            id="stateLocation"
-                                            value={stateLocation}
-                                            onChange={(e) => setStateLocation(e.target.value)}
-                                            placeholder="e.g. Maharashtra"
-                                            className="bg-background"
-                                        />
-                                    </div>
+                                    <ArtistTaxonomyFields
+                                        required
+                                        state={stateLocation}
+                                        artForm={artForm}
+                                        specialty={specialty}
+                                        onStateChange={setStateLocation}
+                                        onArtFormChange={setArtForm}
+                                        onSpecialtyChange={setSpecialty}
+                                    />
                                     <div className="space-y-2">
                                         <Label htmlFor="bio">Bio</Label>
                                         <Textarea
