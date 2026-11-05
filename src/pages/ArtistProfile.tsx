@@ -596,35 +596,48 @@ const ArtistProfile = () => {
                           const day = i + 1;
                           const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
                           const dateStr = format(date, 'yyyy-MM-dd');
+                          const todayStr = format(new Date(), 'yyyy-MM-dd');
+                          const isPast = dateStr <= todayStr;
                           const isBlocked = artist?.availability?.blockedDates?.includes(dateStr);
-                          const isBooked = artist?.availability?.bookedDates?.includes(dateStr);
+                          const isBooked = bookedDates.includes(dateStr);
+                          const cannotBook = isPast || isBlocked || isBooked || availabilityLoading || !!availabilityError || !artist.available;
+                          const label = isBooked ? "Booked — unavailable" : isBlocked ? "Unavailable" : isPast ? "Past date" : cannotBook ? "Availability loading" : "Available — select date";
 
                           return (
                             <button
                               key={day}
-                              className={`aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all ${isBooked
-                                ? "bg-secondary text-secondary-foreground shadow-inner"
-                                : isBlocked
-                                  ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                                  : "bg-green-500/10 text-green-700 hover:bg-green-500/30 ring-1 ring-inset ring-green-500/20"
+                              type="button"
+                              aria-label={`${format(date, 'PPPP')}: ${label}`}
+                              title={label}
+                              className={`aspect-square min-h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-sm font-bold transition-colors ${isBooked
+                                ? "cursor-not-allowed border-red-400 bg-red-100 text-red-800"
+                                : isPast || isBlocked
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                  : availabilityLoading || availabilityError || !artist.available
+                                    ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                                    : "border-green-300 bg-green-50 text-green-800 hover:border-green-600 hover:bg-green-100 focus-visible:ring-2 focus-visible:ring-green-600"
                                 }`}
-                              disabled={isBlocked || isBooked}
+                              disabled={cannotBook}
                               onClick={() => {
                                 setSelectedDate(date);
                                 setIsBookingModalOpen(true);
                               }}
                             >
-                              {day}
+                              <span>{day}</span>
+                              {isBooked && <span className="text-[9px] font-medium leading-none">Booked</span>}
                             </button>
                           );
                         })}
                       </div>
                     </div>
 
-                    <div className="mt-10 text-center">
-                      <Button size="lg" className="bg-gradient-saffron px-10 rounded-full shadow-lg shadow-saffron-200" onClick={() => setIsBookingModalOpen(true)}>
-                        <Calendar className="mr-2 h-5 w-5" />
-                        Check Availability
+                    <div className="mt-6 space-y-3 text-center">
+                      {availabilityLoading && <p className="text-sm text-muted-foreground">Loading booked dates…</p>}
+                      {availabilityError && <p role="alert" className="text-sm text-red-700">{availabilityError}</p>}
+                      {!artist.available && <p className="text-sm text-red-700">This artist isn't accepting bookings right now.</p>}
+                      <p className="text-sm text-muted-foreground">Choose a green date above. You'll enter your event location and message next.</p>
+                      <Button variant="outline" size="sm" disabled={availabilityLoading} onClick={() => setAvailabilityRefresh(n => n + 1)}>
+                        Refresh availability
                       </Button>
                     </div>
                   </CardContent>
