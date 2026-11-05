@@ -1,13 +1,13 @@
 # IndiFolks backend — thesis demo
 
-This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It supports customer and artist registration, admin approval, artist profiles, bookings, reviews, and **Razorpay TEST payments**. Development is isolated on the `feature/backend-development` branch.
+This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It supports customer and artist registration, admin approval, artist profiles, bookings, reviews, and a **clearly labeled simulated-payment flow** (with optional Razorpay TEST routes kept for future work). Development is isolated on the `feature/backend-development` branch.
 
 ## Prerequisites
 
 - Node.js 20 or newer
 - MongoDB Atlas M0 (free) database and a database user
 - Optional: Cloudinary account for profile/gallery image storage
-- Optional: Razorpay **test** API keys for simulated checkout
+- No Razorpay account, PAN, or card details needed for the built-in demo checkout
 
 ## Local installation
 
@@ -18,7 +18,7 @@ This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It s
 5. In the repository root create `.env.local` with `VITE_API_URL=http://localhost:5000`, run `npm ci` and `npm run dev`.
 6. Admin setup: set `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ characters) and optionally `ADMIN_NAME` in backend `.env`. Run `npm run create-admin` once from the backend folder. Delete the admin password from environment afterward. Public admin registration is intentionally disabled.
 7. For uploaded images, set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` on the backend. For now image selection is optional during artist signup, allowing the basic workflow without Cloudinary.
-8. To enable checkout, add `RAZORPAY_KEY_ID=rzp_test_...` and `RAZORPAY_KEY_SECRET=...` to the **backend only**. No live keys are accepted.
+8. Set `ENABLE_DEMO_PAYMENTS=true` in your backend `.env` **only** for a thesis demonstration, then restart the backend. Render's thesis-demo Blueprint is configured with this flag already. This records `demo_paid` separately from any actual payment. No Razorpay keys or PAN are needed. **Disable this flag in any real marketplace deployment.**
 
 **Do not upload your .env or share account passwords or API secrets in chat or on GitHub.**
 
@@ -29,8 +29,8 @@ This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It s
 3. Sign in as the artist, enter a valid positive price in the dashboard, then become available.
 4. Register a customer, browse the artist page, and request a booking for a future date.
 5. Artist accepts the request in the artist dashboard.
-6. Customer visits `/bookings` and clicks **Pay now (test mode)**. Use the Razorpay-provided test payment method, not real money.
-7. Successful captured test payment is verified server-side. Artist can mark the paid booking completed. Customer can post one review after completion.
+6. Customer visits `/bookings`, chooses **Simulate payment — no money charged**, and explicitly confirms the demo. The server marks the booking `demo_paid` with a unique demo receipt. No payment gateway is called and no money moves.
+7. The artist can mark a demo-paid booking completed while demo mode is enabled. After completion, a customer can submit a test review.
 
 ## API
 
@@ -38,7 +38,8 @@ This is a Node.js/Express and MongoDB API for the IndiFolks React frontend. It s
 - POST `/api/auth/register`, POST `/api/auth/login`, POST `/api/auth/admin-login`, GET `/api/auth/me`, PUT `/api/auth/profile`
 - GET `/api/artists`, GET `/api/artists/:id`, GET `/api/artists/me`, PUT `/api/artists/profile`, POST `/api/artists/:id/reviews`
 - POST `/api/bookings`, GET `/api/bookings/my`, GET `/api/bookings/artist`, PATCH `/api/bookings/:id`
-- POST `/api/payments/orders`, POST `/api/payments/verify`
+- POST `/api/demo-payments/confirm` (customer-authenticated, ownership checked, opt-in `ENABLE_DEMO_PAYMENTS=true`, demo-only)
+- Legacy optional Razorpay TEST routes remain at POST `/api/payments/orders` and POST `/api/payments/verify` but are not used by the frontend
 - GET `/api/admin/artists`, GET `/api/admin/users`, GET `/api/admin/bookings`, PATCH `/api/admin/artists/:id/approve`, PATCH `/api/admin/artists/:id/reject`, DELETE `/api/admin/users/:id`
 - GET `/api/states`, GET `/api/states/:id`
 
@@ -71,7 +72,7 @@ Then build with `npm ci && npm run build` and publish the `dist` output. Vite en
 - Do not merge to `main` before reviewing the code and running the test checklist; the original `main` is untouched.
 - No public admin signup and no Aadhaar storage. Do not collect real identity documents for a thesis demo.
 - Never deploy live payment keys. Real-money marketplaces need separate onboarding, payment reconciliation/webhooks, refund handling, payout compliance, audit records, stronger concurrency controls and security reviews.
-- Real paid bookings are not supported by this demo. Image files require Cloudinary (the Render free filesystem is not persistent).
+- **No real payments are collected.** A `demo_paid` booking is proof of a simulated workflow only, not payment verification, a receipt of funds, or a payout obligation. Keep real-payment production services disabled or separately implemented. Image files require Cloudinary (the Render free filesystem is not persistent).
 - Booking date conflicts use simple database checks, not transactional per-day locking. Do not use for production reservations.
 - The state cultural catalog is illustrative and the metadata is not a scholarly reference.
 - Free tiers, resource limits, and policies are subject to change.
