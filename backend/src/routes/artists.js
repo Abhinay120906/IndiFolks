@@ -6,7 +6,7 @@ import { imageUpload, uploadImage, deleteImage, imageStorageConfigured } from '.
 import { profileCompleteness } from '../lib/profileCompleteness.js';
 import { asyncRoute, badRequest, validId, parseJson, safeNumber } from '../lib/helpers.js';
 import { indiaDayKey,monthRange } from '../lib/bookingDates.js';
-import { ART_FORMS, ART_CATEGORIES, STATE_NAMES, normalizeState, categoryForArt, artMatches, normalizeText, isValidCustomValue } from '../lib/artistCatalog.js';
+import { ART_FORM_GROUPS, ART_FORMS, ART_CATEGORIES, STATE_NAMES, normalizeState, categoryForArt, artMatches, normalizeText, isValidCustomValue } from '../lib/artistCatalog.js';
 
 export const artistsRouter = Router();
 function displayArtist(user) {
@@ -34,7 +34,7 @@ artistsRouter.get('/options',asyncRoute(async(_req,res)=>{
     .filter(name=>typeof name==='string'&&name.trim().length>=2&&name.length<=100&&!knownForms.has(normalizeText(name)))
     .map(name=>name.trim()))].sort();
   res.setHeader('Cache-Control','public, max-age=60');
-  res.json({states:STATE_NAMES,artForms:ART_FORMS,categories:ART_CATEGORIES,customStates,customArtForms});
+  res.json({states:STATE_NAMES,artForms:ART_FORMS,categories:ART_CATEGORIES,artFormGroups:ART_FORM_GROUPS,customStates,customArtForms});
 }));
 
 artistsRouter.get('/',asyncRoute(async(req,res)=>{
