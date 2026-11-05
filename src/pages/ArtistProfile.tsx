@@ -21,6 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 const ArtistProfile = () => {
   const { id } = useParams();
   const { user } = useAuth();
+  const isOwnProfile = user?.role === "artist" && String(user._id) === String(id);
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -64,7 +65,7 @@ const ArtistProfile = () => {
     setOwnReview(null);
     setReviewLookupFailed(false);
     setIsEditingReview(false);
-    if (!id || user?.role !== "customer" || !token) {
+    if (!id || (user?.role !== "customer" && user?.role !== "artist") || isOwnProfile || !token) {
       setIsCheckingOwnReview(false);
       return;
     }
@@ -86,7 +87,7 @@ const ArtistProfile = () => {
     };
     void loadOwnReview();
     return () => { cancelled = true; };
-  }, [id, user?._id, user?.role]);
+  }, [id, user?._id, user?.role, isOwnProfile]);
 
   useEffect(() => {
     if (!id || activeTab !== "availability") return;
@@ -115,6 +116,10 @@ const ArtistProfile = () => {
   }, [id, monthKey, activeTab, availabilityRefresh]);
 
   const goToAvailability = (pkg: any = null) => {
+    if (isOwnProfile) {
+      toast.info("You cannot book your own performance. Open your artist dashboard to manage bookings.");
+      return;
+    }
     setSelectedPackage(pkg);
     setSelectedDate(null);
     setActiveTab("availability");
@@ -327,15 +332,15 @@ const ArtistProfile = () => {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button
-                    size="lg"
-                    className="flex-1 bg-[#c65a2d] text-lg font-semibold text-white hover:bg-[#a44721] hover:text-white focus-visible:ring-[#a44721]"
-                    onClick={() => {
-                      goToAvailability();
-                    }}
-                  >
-                    Book Now
-                  </Button>
+                  {isOwnProfile ? (
+                    <Button asChild size="lg" className="flex-1 bg-[#c65a2d] font-semibold text-white hover:bg-[#a44721] hover:text-white">
+                      <Link to="/artist/dashboard?tab=profile">Manage My Profile</Link>
+                    </Button>
+                  ) : (
+                    <Button size="lg" className="flex-1 bg-[#c65a2d] text-lg font-semibold text-white hover:bg-[#a44721] hover:text-white focus-visible:ring-[#a44721]" onClick={() => goToAvailability()}>
+                      Book Now
+                    </Button>
+                  )}
                   <Button
                     size="lg"
                     variant="outline"
@@ -458,11 +463,11 @@ const ArtistProfile = () => {
                       <p className="text-primary-foreground/80 text-sm">
                         Contact {artist.name} to customize a performance for your next event.
                       </p>
-                      <Button variant="secondary" className="w-full rounded-full" onClick={() => {
-                        goToAvailability();
-                      }}>
-                        Message Artist
-                      </Button>
+                      {isOwnProfile ? (
+                        <Button asChild variant="secondary" className="w-full rounded-full"><Link to="/artist/dashboard">Manage incoming inquiries</Link></Button>
+                      ) : (
+                        <Button variant="secondary" className="w-full rounded-full" onClick={() => goToAvailability()}>Message Artist</Button>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -500,18 +505,22 @@ const ArtistProfile = () => {
                           <span className="text-3xl font-extrabold">₹{(Math.round((pkg.price || 0) * 1.1)).toLocaleString("en-IN")}</span>
                           <span className="text-muted-foreground text-xs">fixed rate</span>
                         </div>
-                        <Button className="w-full rounded-full bg-[#c65a2d] font-semibold text-white hover:bg-[#a44721] hover:text-white" onClick={() => {
-                          goToAvailability(pkg);
-                        }}>
-                          Book This Package
-                        </Button>
+                        {isOwnProfile ? (
+                          <Button asChild variant="outline" className="w-full rounded-full"><Link to="/artist/dashboard?tab=profile">Edit My Packages</Link></Button>
+                        ) : (
+                          <Button className="w-full rounded-full bg-[#c65a2d] font-semibold text-white hover:bg-[#a44721] hover:text-white" onClick={() => goToAvailability(pkg)}>Book This Package</Button>
+                        )}
                       </CardContent>
                     </Card>
                   ))
                 ) : (
                   <div className="col-span-full py-12 text-center text-muted-foreground bg-card border rounded-3xl">
                     <p>Standard pricing applies based on the quoted rate of ₹{(artist.totalPrice || Math.round((artist.price || 0) * 1.1)).toLocaleString("en-IN")}.</p>
-                    <Button variant="outline" className="mt-4 rounded-full" onClick={() => goToAvailability()}>Select an Available Date</Button>
+                    {isOwnProfile ? (
+                      <Button asChild variant="outline" className="mt-4 rounded-full"><Link to="/artist/dashboard?tab=profile">Manage My Pricing</Link></Button>
+                    ) : (
+                      <Button variant="outline" className="mt-4 rounded-full" onClick={() => goToAvailability()}>Select an Available Date</Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -600,8 +609,8 @@ const ArtistProfile = () => {
                           const isPast = dateStr <= todayStr;
                           const isBlocked = artist?.availability?.blockedDates?.includes(dateStr);
                           const isBooked = bookedDates.includes(dateStr);
-                          const cannotBook = isPast || isBlocked || isBooked || availabilityLoading || !!availabilityError || !artist.available;
-                          const label = isBooked ? "Booked — unavailable" : isBlocked ? "Unavailable" : isPast ? "Past date" : cannotBook ? "Availability loading" : "Available — select date";
+                          const cannotBook = isOwnProfile || isPast || isBlocked || isBooked || availabilityLoading || !!availabilityError || !artist.available;
+                          const label = isOwnProfile ? "Your own profile — cannot self-book" : isBooked ? "Booked — unavailable" : isBlocked ? "Unavailable" : isPast ? "Past date" : cannotBook ? "Availability loading" : "Available — select date";
 
                           return (
                             <button
@@ -635,7 +644,8 @@ const ArtistProfile = () => {
                       {availabilityLoading && <p className="text-sm text-muted-foreground">Loading booked dates…</p>}
                       {availabilityError && <p role="alert" className="text-sm text-red-700">{availabilityError}</p>}
                       {!artist.available && <p className="text-sm text-red-700">This artist isn't accepting bookings right now.</p>}
-                      <p className="text-sm text-muted-foreground">Choose a green date above. You'll enter your event location and message next.</p>
+                      {isOwnProfile && <p className="text-sm font-medium text-amber-700">This is your own listing. You can manage requests on your dashboard but cannot book yourself.</p>}
+                      {!isOwnProfile && <p className="text-sm text-muted-foreground">Choose a green date above. You'll enter your event location and message next.</p>}
                       <Button variant="outline" size="sm" disabled={availabilityLoading} onClick={() => setAvailabilityRefresh(n => n + 1)}>
                         Refresh availability
                       </Button>
@@ -661,11 +671,16 @@ const ArtistProfile = () => {
                     </Card>
 
                     {/* Don't invite repeat submissions: the backend permits one review per customer. */}
-                    {user?.role !== "customer" ? (
+                    {isOwnProfile ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <h4 className="mb-2 text-lg font-bold">Your artist reviews</h4>
+                        <p className="text-sm text-muted-foreground">Customers and other artists can leave reviews after completing bookings with you.</p>
+                      </Card>
+                    ) : user?.role !== "customer" && user?.role !== "artist" ? (
                       <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
                         <h4 className="mb-2 text-lg font-bold">Leave a Review</h4>
-                        <p className="mb-4 text-sm text-muted-foreground">Sign in as a customer after completing a booking to leave feedback.</p>
-                        <Button asChild variant="outline"><Link to="/login">Customer login</Link></Button>
+                        <p className="mb-4 text-sm text-muted-foreground">Log in as a customer or artist and complete a booking to leave a review.</p>
+                        <Button asChild variant="outline"><Link to="/login">Log in</Link></Button>
                       </Card>
                     ) : isCheckingOwnReview ? (
                       <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
