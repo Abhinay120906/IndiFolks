@@ -34,7 +34,7 @@ export default function ArtistTaxonomyFields({
     <div className="space-y-2">
       <Label htmlFor="artist-state">State / Union Territory <span className="text-destructive">*</span></Label>
       <select id="artist-state" className={selectStyle} value={stateSelection} required={required}
-        disabled={loading||!!error}
+        disabled={loading}
         onChange={e=>{setForcedOtherState(e.target.value===OTHER);onStateChange(e.target.value===OTHER?"":e.target.value);}}>
         <option value="">{loading?"Loading states…":"Choose state / union territory"}</option>
         {options.states.map(name=><option key={name} value={name}>{name}</option>)}
