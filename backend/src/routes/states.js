@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { User } from '../models/User.js';
 import { asyncRoute } from '../lib/helpers.js';
-import { STATE_RECORDS, normalizeState, categoryForArt } from '../lib/artistCatalog.js';
+import { STATE_RECORDS, STATE_NAMES, normalizeState, categoryForArt } from '../lib/artistCatalog.js';
 
 export const statesRouter = Router();
 const slug = name => name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -19,18 +19,35 @@ statesRouter.get('/',asyncRoute(async(_req,res)=>{
     const state=normalizeState(artist.state);
     counts.set(state,(counts.get(state)||0)+1);
   }
-  res.json(states.map(state=>({
+  const known=new Set(STATE_NAMES);
+  const otherLocations=[...counts.entries()]
+    .filter(([name])=>name&&!known.has(name)&&slug(name))
+    .map(([name,count])=>({
+      id:slug(name),name,region:'Other',icon:'🧭',
+      artForms:0,artists:count,artistCount:count,
+      description:'Discover artists working in '+name+'.'
+    })).sort((a,b)=>a.name.localeCompare(b.name));
+  res.json([...states.map(state=>({
     ...state,artForms:state.artForms.length,
     artists:counts.get(state.name)||0,artistCount:counts.get(state.name)||0
-  })));
+  })),...otherLocations]);
 }));
 
 statesRouter.get('/:id',asyncRoute(async(req,res)=>{
-  const state=states.find(record=>record.id===req.params.id);
-  if(!state) return res.status(404).json({message:'State not found'});
   const approvedArtists=await User.find(approved)
     .select('name profileImage gallery available reviews artForm specialty state price experience')
     .limit(3000).lean();
+  const known=states.find(record=>record.id===req.params.id);
+  const customNames=[...new Set(approvedArtists.map(artist=>normalizeState(artist.state))
+    .filter(name=>name&&!STATE_NAMES.includes(name)&&slug(name)))];
+  const custom=customNames.find(name=>slug(name)===req.params.id);
+  const state=known||(custom?{
+    id:slug(custom),name:custom,region:'Other',icon:'🧭',
+    description:'Discover artists working in '+custom+'.',
+    artForms:[...new Set(approvedArtists.filter(artist=>normalizeState(artist.state)===custom)
+      .map(artist=>artist.artForm||artist.specialty).filter(Boolean))]
+  }:null);
+  if(!state) return res.status(404).json({message:'Location not found'});
   const matches=approvedArtists.filter(artist=>normalizeState(artist.state)===state.name);
   const featuredArtists=matches.slice(0,10).map(artist=>{
     const reviews=artist.reviews||[];
