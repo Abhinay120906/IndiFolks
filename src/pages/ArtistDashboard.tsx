@@ -4,7 +4,7 @@ import {
     Calendar, CheckCircle2, XCircle, Clock,
     User, MessageSquare, IndianRupee, Loader2,
     Plus, Trash2, Upload, MapPin, Award, BookOpen,
-    TrendingUp, Star, DollarSign, AlertCircle, CheckCircle
+    TrendingUp, Star, DollarSign, AlertCircle, CheckCircle, Compass, ShoppingBag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -323,7 +323,12 @@ const ArtistDashboard = () => {
                                 </Badge>
                             )}
                         </div>
-                        <p className="text-muted-foreground">Welcome back, {profile?.name || user?.name}</p>
+                        <p className="text-muted-foreground">Welcome back, {profile?.name || user?.name} — manage requests received for your performances.</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <Button asChild variant="outline" size="sm"><Link to="/"><Compass className="mr-2 h-4 w-4" />Marketplace Home</Link></Button>
+                            <Button asChild variant="outline" size="sm"><Link to="/artists">Browse other artists</Link></Button>
+                            <Button asChild variant="outline" size="sm"><Link to="/bookings"><ShoppingBag className="mr-2 h-4 w-4" />My outgoing bookings</Link></Button>
+                        </div>
                     </div>
                     <div className="flex items-center gap-4 rounded-full border bg-card px-4 py-2 shadow-sm">
                         <div className="flex items-center gap-2">
@@ -343,7 +348,7 @@ const ArtistDashboard = () => {
                     <TabsList className="bg-muted/50 p-1">
                         <TabsTrigger value="overview">Overview</TabsTrigger>
                         <TabsTrigger value="bookings" className="relative">
-                            Bookings
+                            Received Bookings
                             {pendingBookings.length > 0 && (
                                 <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
                                     {pendingBookings.length}
