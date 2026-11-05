@@ -6,7 +6,7 @@ import { imageUpload, uploadImage, deleteImage, imageStorageConfigured } from '.
 import { profileCompleteness } from '../lib/profileCompleteness.js';
 import { asyncRoute, badRequest, validId, parseJson, safeNumber } from '../lib/helpers.js';
 import { indiaDayKey,monthRange } from '../lib/bookingDates.js';
-import { ART_FORMS, ART_CATEGORIES, STATE_NAMES, normalizeState, categoryForArt, artMatches, normalizeText } from '../lib/artistCatalog.js';
+import { ART_FORMS, ART_CATEGORIES, STATE_NAMES, normalizeState, categoryForArt, artMatches, normalizeText, isValidCustomValue } from '../lib/artistCatalog.js';
 
 export const artistsRouter = Router();
 function displayArtist(user) {
@@ -67,13 +67,23 @@ artistsRouter.put('/profile',requireAuth,requireRole('artist'),
   imageUpload.fields([{name:'profileImage',maxCount:1},{name:'images',maxCount:8}]),
   asyncRoute(async(req,res)=>{
   const user=req.user;
-  for(const key of ['name','bio','specialty','experience','story','awards','state','artForm']) {
+  for(const key of ['name','bio','specialty','experience','story','awards']) {
     if(req.body[key]!==undefined) {
       if(typeof req.body[key]!=='string') return badRequest(res,'Invalid '+key);
       if(key==='name'&&!req.body[key].trim()) return badRequest(res,'Artist name is required');
       const max=key==='story'?5000:key==='bio'?3000:key==='name'?100:500;
       user[key]=req.body[key].trim().slice(0,max);
     }
+  }
+  if(req.body.state!==undefined){
+    const state=normalizeState(req.body.state);
+    if(!isValidCustomValue(state))return badRequest(res,'Choose a state or specify it under Other');
+    user.state=state;
+  }
+  if(req.body.artForm!==undefined){
+    const form=String(req.body.artForm||'').trim();
+    if(!isValidCustomValue(form))return badRequest(res,'Choose an art form or specify it under Other');
+    user.artForm=form;
   }
   if(req.body.price!==undefined) {
     const n=safeNumber(req.body.price,NaN);
