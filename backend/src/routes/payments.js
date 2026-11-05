@@ -20,7 +20,7 @@ function equalsHex(a,b) {
  const x=Buffer.from(a,'hex'),y=Buffer.from(b,'hex');
  return x.length===y.length&&crypto.timingSafeEqual(x,y);
 }
-paymentsRouter.post('/orders',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+paymentsRouter.post('/orders',requireAuth,requireRole('customer','artist'),asyncRoute(async(req,res)=>{
  const {bookingId}=req.body;
  if(!validId(bookingId)) return badRequest(res,'Invalid booking ID');
  const booking=await Booking.findOne({_id:bookingId,customer:req.user._id});
@@ -35,7 +35,7 @@ paymentsRouter.post('/orders',requireAuth,requireRole('customer'),asyncRoute(asy
  }
  res.json({keyId:process.env.RAZORPAY_KEY_ID,orderId:booking.razorpayOrderId,bookingId:String(booking._id),amount,currency:'INR'});
 }));
-paymentsRouter.post('/verify',requireAuth,requireRole('customer'),asyncRoute(async(req,res)=>{
+paymentsRouter.post('/verify',requireAuth,requireRole('customer','artist'),asyncRoute(async(req,res)=>{
  const {bookingId,razorpay_order_id:orderId,razorpay_payment_id:paymentId,razorpay_signature:signature}=req.body;
  if(![bookingId,orderId,paymentId,signature].every(x=>typeof x==='string')||!validId(bookingId)) return badRequest(res,'Payment details missing');
  const booking=await Booking.findOne({_id:bookingId,customer:req.user._id});
