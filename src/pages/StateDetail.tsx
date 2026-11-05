@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import MainLayout from "@/components/layout/MainLayout";
+import { artIllustration } from "@/lib/artIllustrations";
 
 const StateDetail = () => {
   const { stateId } = useParams();
@@ -155,8 +156,8 @@ const StateDetail = () => {
                 <Card className="group h-full overflow-hidden transition-all hover:border-primary/30 hover:shadow-warm">
                   <div className="relative aspect-video bg-gradient-to-br from-primary/20 to-accent/20">
                     <img
-                      src={artForm.image}
-                      alt={artForm.name}
+                      src={artIllustration(artForm.category)}
+                      alt={`Illustrative image for ${artForm.name}`}
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
                     />
                     <Badge className="absolute right-3 top-3 bg-card/90">
@@ -218,7 +219,7 @@ const StateDetail = () => {
                     <div className="relative aspect-square bg-gradient-to-br from-primary/10 to-accent/10">
                       <div className="absolute inset-0 flex items-center justify-center">
                         <img
-                          src={artist.profileImage || "https://icon-library.com/images/anonymous-avatar-icon/anonymous-avatar-icon-25.jpg"}
+                          src={artist.profileImage || artist.gallery?.[0]?.url || artIllustration("Traditional Arts")}
                           className="h-full w-full object-cover"
                           alt={artist.name}
                         />
@@ -228,7 +229,7 @@ const StateDetail = () => {
                           }`}
                         variant={artist.available ? "default" : "secondary"}
                       >
-                        {artist.available ? "Available" : "Booked"}
+                        {artist.available ? "Available" : "Not accepting"}
                       </Badge>
                     </div>
 
@@ -241,7 +242,7 @@ const StateDetail = () => {
 
                       <div className="mb-3 flex items-center gap-1 text-sm">
                         <Star className="h-4 w-4 fill-accent text-accent" />
-                        <span className="font-medium">{artist.rating || 4.5}</span>
+                        <span className="font-medium">{artist.reviewsCount ? artist.rating : "New"}</span>
                         <span className="text-muted-foreground">({artist.reviewsCount || 0})</span>
                       </div>
 

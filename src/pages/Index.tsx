@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import MainLayout from "@/components/layout/MainLayout";
+import { artIllustration } from "@/lib/artIllustrations";
 
 const heroImage = "https://images.unsplash.com/photo-1533130061792-64b345e4a833?auto=format&fit=crop&w=1800&q=85";
 
@@ -19,12 +20,6 @@ const artForms = [
   { name: "Traditional Arts", detail: "Craft · Storytelling · Ritual", image: "https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?auto=format&fit=crop&w=900&q=80" },
 ];
 
-const artists = [
-  { name: "Meera Sharma", form: "Kathak", location: "Jaipur, Rajasthan", rating: 4.9, price: "₹8,000+", image: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=900&q=80" },
-  { name: "Arjun Das", form: "Tabla & Folk Music", location: "Kolkata, West Bengal", rating: 4.8, price: "₹6,500+", image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80" },
-  { name: "Ananya Nair", form: "Bharatanatyam", location: "Chennai, Tamil Nadu", rating: 5.0, price: "₹10,000+", image: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=900&q=80" },
-  { name: "Ravi Bhati", form: "Rajasthani Folk", location: "Jodhpur, Rajasthan", rating: 4.9, price: "₹7,500+", image: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80" },
-];
 
 const states = [
   ["Rajasthan", "Folk dance, puppetry & music", "https://images.unsplash.com/photo-1477587458883-47145ed94245?auto=format&fit=crop&w=900&q=80"],
@@ -43,14 +38,19 @@ const Index = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [artistCount, setArtistCount] = useState(500);
+  const [artistCount, setArtistCount] = useState(0);
+  const [featuredArtists,setFeaturedArtists] = useState<any[]>([]);
 
   useEffect(() => {
     if (isAuthenticated && user?.role === "artist") navigate("/artist/dashboard");
     fetch(`${import.meta.env.VITE_API_URL}/api/stats`)
       .then((r) => r.json())
-      .then((r) => r?.success && r?.data?.totalArtists && setArtistCount(r.data.totalArtists))
+      .then((r) => { if(r?.success && typeof r?.data?.totalArtists === "number") setArtistCount(r.data.totalArtists); })
       .catch(() => undefined);
+    fetch(`${import.meta.env.VITE_API_URL}/api/artists?limit=4`)
+      .then(r=>r.ok?r.json():[])
+      .then(artists=>{if(Array.isArray(artists))setFeaturedArtists(artists);})
+      .catch(()=>setFeaturedArtists([]));
   }, [isAuthenticated, user, navigate]);
 
   const submitSearch = (e: FormEvent) => {
@@ -59,10 +59,10 @@ const Index = () => {
   };
 
   const stats = useMemo(() => [
-    [String(artistCount) + "+", "Verified artists"],
-    ["28", "States represented"],
-    ["4.9/5", "Average rating"],
-    ["24/7", "Booking support"],
+    [String(artistCount), "Verified artists"],
+    ["36", "States and territories"],
+    ["6", "Art categories"],
+    ["Demo", "Safe test payments"],
   ], [artistCount]);
 
   return (
@@ -106,7 +106,31 @@ const Index = () => {
         <section className="if-section if-soft-section">
           <div className="if-container">
             <div className="if-section-head"><div><div className="if-eyebrow">Handpicked talent</div><h2>Artists worth discovering</h2><p className="if-section-sub">A cleaner way to browse trusted performers without getting lost in a directory.</p></div><Link className="if-text-link" to="/artists">Browse all <ArrowRight size={17}/></Link></div>
-            <div className="if-artist-grid">{artists.map((artist) => <article className="if-artist-card" key={artist.name}><div className="if-artist-image"><img src={artist.image} alt={artist.name}/><button aria-label={`Save ${artist.name}`}><Heart size={18}/></button><span className="if-verified"><Verified size={14}/> Verified</span></div><div className="if-artist-body"><div className="if-artist-top"><div><h3>{artist.name}</h3><p>{artist.form}</p></div><span className="if-rating"><Star size={14} fill="currentColor"/> {artist.rating}</span></div><div className="if-location"><MapPin size={15}/> {artist.location}</div><div className="if-artist-bottom"><span>From <strong>{artist.price}</strong></span><Link to="/artists">View profile <ChevronRight size={15}/></Link></div></div></article>)}</div>
+            <div className="if-artist-grid">
+              {featuredArtists.length ? featuredArtists.map(artist=><article className="if-artist-card" key={artist._id}>
+                <div className="if-artist-image">
+                  <img src={artist.profileImage || artist.gallery?.[0]?.url || artIllustration(artist.artCategory)}
+                    loading="lazy" alt={artist.profileImage || artist.gallery?.[0]?.url ? artist.name : `Illustrative ${artist.artCategory || "traditional art"} image`} />
+                  <span className="if-verified"><Verified size={14}/> Verified</span>
+                  {!artist.profileImage&&!artist.gallery?.[0]?.url&&<span className="absolute bottom-3 left-3 rounded bg-black/65 px-2 py-1 text-[10px] text-white">Illustrative category image</span>}
+                </div>
+                <div className="if-artist-body">
+                  <div className="if-artist-top">
+                    <div><h3>{artist.name}</h3><p>{artist.artForm || artist.specialty || "Traditional artist"}</p></div>
+                    <span className="if-rating"><Star size={14} fill="currentColor"/> {artist.reviewsCount ? artist.rating : "New"}</span>
+                  </div>
+                  <div className="if-location"><MapPin size={15}/> {artist.state || "Location not listed"}</div>
+                  <div className="if-artist-bottom">
+                    <span>From <strong>₹{Number(artist.price||0).toLocaleString("en-IN")}</strong></span>
+                    <Link to={`/artists/${artist._id}`}>View profile <ChevronRight size={15}/></Link>
+                  </div>
+                </div>
+              </article>) : <div className="col-span-full rounded-xl border border-dashed border-primary/30 bg-card p-8 text-center">
+                <p className="text-lg font-semibold">Our artist directory is growing</p>
+                <p className="mt-2 text-sm text-muted-foreground">Approved artist profiles will appear here automatically.</p>
+                <Link to="/register?role=artist" className="mt-4 inline-flex text-sm font-semibold text-primary">Register as an artist <ArrowRight size={15} className="ml-2"/></Link>
+              </div>}
+            </div>
           </div>
         </section>
 

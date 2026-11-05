@@ -11,6 +11,7 @@ export interface User {
     bio?: string;
     state?: string;
     specialty?: string;
+    artForm?: string;
     available?: boolean;
     token?: string;
 }
@@ -20,6 +21,7 @@ interface AuthState {
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (userData: User) => void;
+    updateUser: (patch: Partial<User>) => void;
     logout: () => void;
 }
 
@@ -28,6 +30,7 @@ export const AuthContext = createContext<AuthState>({
     isAuthenticated: false,
     isLoading: true,
     login: () => { },
+    updateUser: () => { },
     logout: () => { },
 });
 
@@ -52,6 +55,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const updateUser = (patch: Partial<User>) => {
+        setUser(previous => {
+            if (!previous) return null;
+            const updated = { ...previous, ...patch };
+            localStorage.setItem('user', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     const logout = () => {
         setUser(null);
         localStorage.removeItem('user');
@@ -59,7 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, updateUser, logout }}>
             {children}
         </AuthContext.Provider>
     );

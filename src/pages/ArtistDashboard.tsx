@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
     Calendar, CheckCircle2, XCircle, Clock,
     User, MessageSquare, IndianRupee, Loader2,
@@ -19,27 +19,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import ArtistTaxonomyFields from "@/components/ArtistTaxonomyFields";
 
 const ArtistDashboard = () => {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [bookings, setBookings] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [profile, setProfile] = useState<any>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isStatusLoading, setIsStatusLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState("overview");
+    const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") === "profile" ? "profile" : "overview");
+
+    useEffect(() => {
+        if (searchParams.get("tab") === "profile") setActiveTab("profile");
+    }, [searchParams]);
 
     // Form states
     const [name, setName] = useState("");
     const [bio, setBio] = useState("");
     const [specialty, setSpecialty] = useState("");
+    const [stateLocation, setStateLocation] = useState("");
+    const [artForm, setArtForm] = useState("");
     const [experience, setExperience] = useState("");
     const [price, setPrice] = useState(0);
     const [story, setStory] = useState("");
     const [packages, setPackages] = useState<any[]>([]);
     const [gallery, setGallery] = useState<any[]>([]);
     const [newImages, setNewImages] = useState<FileList | null>(null);
+    const [newProfileImage, setNewProfileImage] = useState<File | null>(null);
+    const [fileInputVersion, setFileInputVersion] = useState(0);
     const [galleryToDelete, setGalleryToDelete] = useState<string[]>([]);
     const [isAvailable, setIsAvailable] = useState(true);
 
@@ -49,7 +59,7 @@ const ArtistDashboard = () => {
             return;
         }
         fetchData();
-    }, [user, navigate]);
+    }, [user?._id, user?.role, navigate]);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -70,6 +80,8 @@ const ArtistDashboard = () => {
             setName(data.name || "");
             setBio(data.bio || "");
             setSpecialty(data.specialty || "");
+            setStateLocation(data.state || "");
+            setArtForm(data.artForm || data.specialty || "");
             setExperience(data.experience || "");
             setPrice(data.price || 0);
             setStory(data.story || "");
@@ -110,17 +122,40 @@ const ArtistDashboard = () => {
 
             if (response.ok) {
                 toast.success(`Booking ${status} successfully`);
-                fetchBookings();
+                void fetchBookings();
             } else {
-                toast.error("Failed to update status");
+                const result = await response.json().catch(() => null);
+                const explanation = typeof result?.message === 'string' ? result.message : 'Request rejected';
+                toast.error(`Booking update failed (HTTP ${response.status}): ${explanation}`);
             }
         } catch (error) {
-            toast.error("An error occurred");
+            toast.error(error instanceof Error ? error.message : "Could not reach the backend");
         }
     };
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!stateLocation.trim() || !artForm.trim()) {
+            toast.error("Choose your state and art form, or provide them under Other.");
+            return;
+        }
+        const files = [...(newImages ? Array.from(newImages) : []), ...(newProfileImage ? [newProfileImage] : [])];
+        if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) {
+            toast.error("Only JPG, PNG and WebP images are supported");
+            return;
+        }
+        if (files.some(file => file.size > 4 * 1024 * 1024)) {
+            toast.error("Each image must be 4 MB or smaller");
+            return;
+        }
+        if (newImages && newImages.length > 8) {
+            toast.error("Select at most 8 gallery photos per upload");
+            return;
+        }
+        if (files.length && profile?.imageUploadsEnabled === false) {
+            toast.error("Cloudinary is not configured. Set your backend Cloudinary environment variables before uploading.");
+            return;
+        }
         setIsSaving(true);
         try {
             const token = localStorage.getItem('token');
@@ -128,38 +163,49 @@ const ArtistDashboard = () => {
             formData.append('name', name);
             formData.append('bio', bio);
             formData.append('specialty', specialty);
+            formData.append('state', stateLocation);
+            formData.append('artForm', artForm);
             formData.append('experience', experience);
             formData.append('price', price.toString());
             formData.append('story', story);
-            // Allow updating approvalStatus through profile update if it's 'draft'
-            if (profile?.approvalStatus === 'draft') {
-                formData.append('approvalStatus', 'draft');
-            }
             formData.append('pricing', JSON.stringify({ packages, addOns: profile?.pricing?.addOns || [] }));
             formData.append('galleryToDelete', JSON.stringify(galleryToDelete));
-
-            if (newImages) {
-                Array.from(newImages).forEach(file => {
-                    formData.append('images', file);
-                });
-            }
+            if (newProfileImage) formData.append('profileImage', newProfileImage);
+            for (const file of Array.from(newImages || [])) formData.append('images', file);
 
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/profile`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: { Authorization: `Bearer ${token}` },
                 body: formData
             });
-
-            if (response.ok) {
-                toast.success("Profile updated successfully");
-                fetchProfile();
-                setNewImages(null);
-                setGalleryToDelete([]);
-            } else {
-                toast.error("Failed to update profile");
-            }
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || `Unable to update profile (HTTP ${response.status})`);
+            setProfile(data);
+            updateUser({
+                name: data.name,
+                bio: data.bio || "",
+                state: data.state || "",
+                artForm: data.artForm || "",
+                specialty: data.specialty || "",
+                profileImage: data.profileImage || ""
+            });
+            setName(data.name || "");
+            setBio(data.bio || "");
+            setSpecialty(data.specialty || "");
+            setStateLocation(data.state || "");
+            setArtForm(data.artForm || data.specialty || "");
+            setExperience(data.experience || "");
+            setStory(data.story || "");
+            setPrice(data.price || 0);
+            setPackages(data.pricing?.packages || []);
+            setGallery(data.gallery || []);
+            setNewImages(null);
+            setNewProfileImage(null);
+            setGalleryToDelete([]);
+            setFileInputVersion(v => v + 1);
+            toast.success("Profile saved successfully");
         } catch (error) {
-            toast.error("An error occurred");
+            toast.error(error instanceof Error ? error.message : "Profile could not be saved");
         } finally {
             setIsSaving(false);
         }
@@ -195,37 +241,17 @@ const ArtistDashboard = () => {
         setIsStatusLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const formData = new FormData();
-            // We reuse the update profile endpoint to just flip the availability
-            // But we need to make sure the backend handles 'available' field properly
-            // Actually let's check artistController's updateArtistProfile again
-            // It doesn't seem to explicitly handle 'available'. I might need to add it.
-
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/profile`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ available: !isAvailable }),
-                // Wait, if I'm sending JSON I shouldn't use FormData or I should set headers correctly
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ available: !isAvailable })
             });
-
-            // Re-thinking: Better to update the backend controller to handle simple JSON updates too or just add the field to multipart
-            // Let's assume for a second I will update the backend to handle 'available'
-
-            // Temporary workaround using existing formData structure
-            const fd = new FormData();
-            fd.append('available', String(!isAvailable));
-            const resp = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/profile`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: fd
-            });
-
-            if (resp.ok) {
-                setIsAvailable(!isAvailable);
-                toast.success(`You are now ${!isAvailable ? 'Available' : 'Unavailable'}`);
-            }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Failed to update availability');
+            setIsAvailable(data.available);
+            toast.success(`You are now ${data.available ? 'Available' : 'Unavailable'}`);
         } catch (error) {
-            toast.error("Failed to update status");
+            toast.error(error instanceof Error ? error.message : 'Failed to update availability');
         } finally {
             setIsStatusLoading(false);
         }
@@ -263,7 +289,7 @@ const ArtistDashboard = () => {
 
     // Stats calculation
     const totalEarnings = bookings
-        .filter(b => b.status === 'confirmed' || b.status === 'completed')
+        .filter(b => (b.status === 'confirmed' || b.status === 'completed') && ['paid', 'demo_paid'].includes(b.paymentStatus))
         .reduce((sum, b) => sum + (b.price || 0), 0);
 
     if (isLoading) {
@@ -354,12 +380,12 @@ const ArtistDashboard = () => {
                             </Card>
                             <Card className="border-l-4 border-l-saffron-500">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Estimated Earnings</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Demo / Test Payments</CardTitle>
                                     <IndianRupee className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold">₹{totalEarnings.toLocaleString('en-IN')}</div>
-                                    <p className="text-xs text-muted-foreground">From confirmed bookings</p>
+                                    <p className="text-xs text-muted-foreground">Test amounts only — not actual earnings</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-l-4 border-l-purple-500">
@@ -368,7 +394,7 @@ const ArtistDashboard = () => {
                                     <Star className="h-4 w-4 text-muted-foreground fill-yellow-400 text-yellow-400" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{profile?.rating || '4.8'}</div>
+                                    <div className="text-2xl font-bold">{profile?.reviewsCount ? profile?.rating : '—'}</div>
                                     <p className="text-xs text-muted-foreground">Based on {profile?.reviewsCount || 0} reviews</p>
                                 </CardContent>
                             </Card>
@@ -418,7 +444,7 @@ const ArtistDashboard = () => {
                                     {profile?.approvalStatus === 'draft' && (
                                         <div className="pt-4 border-t">
                                             <Button
-                                                className="w-full bg-gradient-saffron hover:opacity-90 shadow-lg mb-2"
+                                                className="mb-2 w-full bg-[#c65a2d] font-semibold text-white shadow-lg hover:bg-[#a44721] hover:text-white"
                                                 onClick={submitForApproval}
                                                 disabled={isStatusLoading}
                                             >
@@ -432,7 +458,10 @@ const ArtistDashboard = () => {
                                     )}
 
                                     <Button variant="outline" className="w-full" onClick={() => setActiveTab("profile")}>
-                                        Manage Profile
+                                        Edit Profile
+                                    </Button>
+                                    <Button variant="outline" asChild className="w-full">
+                                        <Link to="/profile">View Saved Profile</Link>
                                     </Button>
                                 </CardContent>
                             </Card>
@@ -558,7 +587,11 @@ const ArtistDashboard = () => {
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Confirmed</Badge>
-                                                        <Button variant="ghost" size="sm" onClick={() => updateStatus(booking._id, 'completed')}>Done</Button>
+                                                        {['paid', 'demo_paid'].includes(booking.paymentStatus) ? (
+                                                            <Button variant="ghost" size="sm" onClick={() => updateStatus(booking._id, 'completed')}>Mark completed</Button>
+                                                        ) : (
+                                                            <span className="text-sm text-muted-foreground">Awaiting payment</span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -582,15 +615,20 @@ const ArtistDashboard = () => {
                                         <Label htmlFor="name">Artist Stage Name</Label>
                                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="specialty">Primary Specialty</Label>
-                                            <Input id="specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Kathakali, Baul Singing" />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="experience">Years of Experience</Label>
-                                            <Input id="experience" value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="e.g. 15+ Years" />
-                                        </div>
+                                    <div className="rounded-xl border border-border bg-muted/20 p-4">
+                                        <ArtistTaxonomyFields
+                                            required
+                                            state={stateLocation}
+                                            artForm={artForm}
+                                            specialty={specialty}
+                                            onStateChange={setStateLocation}
+                                            onArtFormChange={setArtForm}
+                                            onSpecialtyChange={setSpecialty}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="experience">Years of Experience</Label>
+                                        <Input id="experience" value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="e.g. 15+ Years" />
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="price">Base Performance Price (₹)</Label>
@@ -611,11 +649,41 @@ const ArtistDashboard = () => {
                                 </CardContent>
                             </Card>
 
+                            {/* Profile photo */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Profile Photo</CardTitle>
+                                    <CardDescription>This picture appears on your artist listing and profile.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex flex-wrap items-center gap-6">
+                                    {profile?.profileImage ? (
+                                        <img src={profile.profileImage} alt="Current artist profile" className="h-24 w-24 rounded-full border object-cover" />
+                                    ) : (
+                                        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted text-3xl font-semibold">
+                                            {(profile?.name || 'A').charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <div className="min-w-0 flex-1 space-y-3">
+                                        <Label htmlFor="artist-avatar">Upload or replace profile picture</Label>
+                                        <Input
+                                            key={`avatar-${fileInputVersion}`}
+                                            id="artist-avatar"
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            disabled={isSaving || profile?.imageUploadsEnabled === false}
+                                            onChange={e => setNewProfileImage(e.target.files?.[0] || null)}
+                                        />
+                                        {newProfileImage && <p className="text-sm text-primary">Selected: {newProfileImage.name}</p>}
+                                        <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 4 MB. Save profile to upload.</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
                             {/* Gallery */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Performance Gallery</CardTitle>
-                                    <CardDescription>Upload high-quality images of your performances</CardDescription>
+                                    <CardDescription>Upload up to 8 pictures at a time (maximum 24 saved). Files must be JPG, PNG or WebP, under 4 MB each.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="grid gap-6">
                                     <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
@@ -635,12 +703,12 @@ const ArtistDashboard = () => {
                                                 </div>
                                             </div>
                                         ))}
-                                        <label className="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 transition-colors hover:border-primary/50 hover:bg-muted/50">
+                                        <label className={`flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 transition-colors ${profile?.imageUploadsEnabled === false ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-primary/50 hover:bg-muted/50'}`}>
                                             <div className="mb-2 rounded-full bg-primary/10 p-2 text-primary">
                                                 <Upload className="h-6 w-6" />
                                             </div>
                                             <span className="text-xs font-bold text-muted-foreground">Upload Images</span>
-                                            <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => setNewImages(e.target.files)} />
+                                            <input key={`gallery-${fileInputVersion}`} type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={isSaving || profile?.imageUploadsEnabled === false} onChange={(e) => setNewImages(e.target.files)} />
                                         </label>
                                     </div>
                                     {newImages && (
@@ -648,6 +716,15 @@ const ArtistDashboard = () => {
                                             <CheckCircle2 className="h-4 w-4" />
                                             {newImages.length} new images selected to upload
                                         </p>
+                                    )}
+                                    {profile?.imageUploadsEnabled === false && (
+                                        <p role="note" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                                            Cloudinary image storage is not configured on this backend.
+                                            You can save text details now; image uploads will become available after Cloudinary credentials are added.
+                                        </p>
+                                    )}
+                                    {galleryToDelete.length > 0 && (
+                                        <p className="text-sm text-amber-700">{galleryToDelete.length} image(s) selected for deletion. Click Save Profile Changes to apply.</p>
                                     )}
                                 </CardContent>
                             </Card>
@@ -702,7 +779,7 @@ const ArtistDashboard = () => {
                             </Card>
 
                             <div className="flex sticky bottom-8 justify-end">
-                                <Button type="submit" size="lg" disabled={isSaving} className="bg-gradient-saffron px-8 shadow-xl hover:shadow-2xl hover:scale-105 transition-all">
+                                <Button type="submit" size="lg" disabled={isSaving} className="bg-[#c65a2d] px-8 font-semibold text-white shadow-lg hover:bg-[#a44721] hover:text-white focus-visible:ring-[#a44721] disabled:text-white">
                                     {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                     Save Profile Changes
                                 </Button>
@@ -804,7 +881,10 @@ const BookingCard = ({ booking, onAction }: { booking: any, onAction: (id: strin
                         </>
                     )}
 
-                    {booking.status === 'confirmed' && (
+                    {booking.status === 'confirmed' && booking.paymentStatus === 'unpaid' && (
+                        <span className="text-sm text-muted-foreground">Awaiting customer payment</span>
+                    )}
+                    {booking.status === 'confirmed' && ['paid', 'demo_paid'].includes(booking.paymentStatus) && (
                         <Button
                             variant="outline"
                             size="sm"

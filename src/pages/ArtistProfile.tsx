@@ -15,9 +15,12 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import MainLayout from "@/components/layout/MainLayout";
 import BookingModal from "@/components/BookingModal";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const ArtistProfile = () => {
   const { id } = useParams();
+  const { user } = useAuth();
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -25,10 +28,20 @@ const ArtistProfile = () => {
   const [currentGalleryIndex, setCurrentGalleryIndex] = useState(0);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [reviewRating, setReviewRating] = useState(5);
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const [activeTab, setActiveTab] = useState("about");
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [availabilityRefresh, setAvailabilityRefresh] = useState(0);
+  const monthKey = format(currentMonth, "yyyy-MM");
+  const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [ownReview, setOwnReview] = useState<{rating: number; comment: string} | null>(null);
+  const [isCheckingOwnReview, setIsCheckingOwnReview] = useState(false);
+  const [reviewLookupFailed, setReviewLookupFailed] = useState(false);
+  const [isEditingReview, setIsEditingReview] = useState(false);
 
   useEffect(() => {
     const fetchArtist = async () => {
@@ -45,6 +58,71 @@ const ArtistProfile = () => {
     };
     fetchArtist();
   }, [id]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    setOwnReview(null);
+    setReviewLookupFailed(false);
+    setIsEditingReview(false);
+    if (!id || user?.role !== "customer" || !token) {
+      setIsCheckingOwnReview(false);
+      return;
+    }
+    let cancelled = false;
+    setIsCheckingOwnReview(true);
+    const loadOwnReview = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/${id}/my-review`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error("Unable to check previous reviews");
+        const data = await response.json();
+        if (!cancelled) setOwnReview(data.review ?? null);
+      } catch {
+        if (!cancelled) setReviewLookupFailed(true);
+      } finally {
+        if (!cancelled) setIsCheckingOwnReview(false);
+      }
+    };
+    void loadOwnReview();
+    return () => { cancelled = true; };
+  }, [id, user?._id, user?.role]);
+
+  useEffect(() => {
+    if (!id || activeTab !== "availability") return;
+    let cancelled = false;
+    setAvailabilityLoading(true);
+    setAvailabilityError("");
+    setBookedDates([]);
+    const loadAvailability = async () => {
+      try {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/artists/${id}/availability?month=${monthKey}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("Unable to load booked dates");
+        const data = await response.json();
+        if (!Array.isArray(data.bookedDates)) throw new Error("Invalid calendar response");
+        if (!cancelled) setBookedDates(data.bookedDates);
+      } catch {
+        if (!cancelled) setAvailabilityError("Couldn't load the artist's booked dates. Please retry.");
+      } finally {
+        if (!cancelled) setAvailabilityLoading(false);
+      }
+    };
+    void loadAvailability();
+    return () => { cancelled = true; };
+  }, [id, monthKey, activeTab, availabilityRefresh]);
+
+  const goToAvailability = (pkg: any = null) => {
+    setSelectedPackage(pkg);
+    setSelectedDate(null);
+    setActiveTab("availability");
+    setAvailabilityRefresh(n => n + 1);
+    requestAnimationFrame(() => {
+      document.getElementById("artist-availability")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
 
   if (isLoading) {
     return (
@@ -66,6 +144,14 @@ const ArtistProfile = () => {
       </MainLayout>
     );
   }
+
+  // The API returns `reviews`; `customerReviews` is retained only for older fixtures.
+  const displayedReviews = Array.isArray(artist.reviews)
+    ? artist.reviews
+    : Array.isArray(artist.customerReviews) ? artist.customerReviews : [];
+
+  const starStyle = (selected: boolean) =>
+    selected ? "fill-[#f6b73c] text-[#d88b14]" : "fill-none text-[#cdbfae]";
 
   const gallery = [
     { id: 1, type: "image", url: artist.profileImage || "/placeholder.svg", title: "Profile Image" },
@@ -204,8 +290,8 @@ const ArtistProfile = () => {
               {/* Rating & Location */}
               <div className="mb-6 flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-1">
-                  <Star className="h-5 w-5 fill-accent text-accent" />
-                  <span className="font-semibold">{artist.rating || 4.5}</span>
+                  <Star strokeWidth={1.8} className={cn("h-5 w-5", starStyle(Boolean(artist.reviewsCount)))} />
+                  <span className="font-semibold">{artist.reviewsCount ? artist.rating : "New"}</span>
                   <span className="text-muted-foreground">({artist.reviewsCount || 0} reviews)</span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground">
@@ -243,10 +329,9 @@ const ArtistProfile = () => {
                 <div className="flex gap-3">
                   <Button
                     size="lg"
-                    className="flex-1 bg-gradient-saffron text-lg hover:opacity-90"
+                    className="flex-1 bg-[#c65a2d] text-lg font-semibold text-white hover:bg-[#a44721] hover:text-white focus-visible:ring-[#a44721]"
                     onClick={() => {
-                      setSelectedPackage(null);
-                      setIsBookingModalOpen(true);
+                      goToAvailability();
                     }}
                   >
                     Book Now
@@ -268,7 +353,9 @@ const ArtistProfile = () => {
 
       <BookingModal
         isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
+        onClose={() => { setIsBookingModalOpen(false); setSelectedDate(null); }}
+        selectedDate={selectedDate}
+        onAvailabilityChanged={() => setAvailabilityRefresh(n => n + 1)}
         artistId={artist._id}
         artistName={artist.name}
         price={artist.totalPrice || Math.round((artist.price || 0) * 1.1)}
@@ -278,7 +365,7 @@ const ArtistProfile = () => {
       {/* Details Tabs */}
       <section className="py-8 md:py-12 bg-muted/20">
         <div className="container">
-          <Tabs defaultValue="about" className="space-y-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
             <div className="flex justify-center">
               <TabsList className="bg-card border p-1 rounded-full shadow-sm">
                 <TabsTrigger value="about" className="rounded-full px-8">About</TabsTrigger>
@@ -372,8 +459,7 @@ const ArtistProfile = () => {
                         Contact {artist.name} to customize a performance for your next event.
                       </p>
                       <Button variant="secondary" className="w-full rounded-full" onClick={() => {
-                        setSelectedPackage(null);
-                        setIsBookingModalOpen(true);
+                        goToAvailability();
                       }}>
                         Message Artist
                       </Button>
@@ -414,9 +500,8 @@ const ArtistProfile = () => {
                           <span className="text-3xl font-extrabold">₹{(Math.round((pkg.price || 0) * 1.1)).toLocaleString("en-IN")}</span>
                           <span className="text-muted-foreground text-xs">fixed rate</span>
                         </div>
-                        <Button className="w-full rounded-full bg-primary hover:bg-primary/90" onClick={() => {
-                          setSelectedPackage(pkg);
-                          setIsBookingModalOpen(true);
+                        <Button className="w-full rounded-full bg-[#c65a2d] font-semibold text-white hover:bg-[#a44721] hover:text-white" onClick={() => {
+                          goToAvailability(pkg);
                         }}>
                           Book This Package
                         </Button>
@@ -426,7 +511,7 @@ const ArtistProfile = () => {
                 ) : (
                   <div className="col-span-full py-12 text-center text-muted-foreground bg-card border rounded-3xl">
                     <p>Standard pricing applies based on the quoted rate of ₹{(artist.totalPrice || Math.round((artist.price || 0) * 1.1)).toLocaleString("en-IN")}.</p>
-                    <Button variant="outline" className="mt-4 rounded-full" onClick={() => setIsBookingModalOpen(true)}>Inquire for Quote</Button>
+                    <Button variant="outline" className="mt-4 rounded-full" onClick={() => goToAvailability()}>Select an Available Date</Button>
                   </div>
                 )}
               </div>
@@ -452,12 +537,12 @@ const ArtistProfile = () => {
             </TabsContent>
 
             {/* Availability Tab */}
-            <TabsContent value="availability" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <TabsContent id="artist-availability" value="availability" className="animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-24">
               <div className="max-w-4xl mx-auto">
                 <Card className="rounded-3xl border-none shadow-xl">
                   <CardHeader className="text-center">
                     <CardTitle className="text-2xl font-display">Booking Schedule</CardTitle>
-                    <p className="text-muted-foreground">Dates highlighted in red are already confirmed</p>
+                    <p className="text-muted-foreground">Select a green date to request a booking. Red dates are already booked and unavailable.</p>
                   </CardHeader>
                   <CardContent>
                     <div className="mb-8 flex justify-center flex-wrap gap-6">
@@ -466,11 +551,11 @@ const ArtistProfile = () => {
                         <span className="text-sm font-medium">Available</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-secondary"></div>
+                        <div className="h-3 w-3 rounded-full bg-red-500"></div>
                         <span className="text-sm font-medium">Booked</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-muted"></div>
+                        <div className="h-3 w-3 rounded-full bg-slate-400"></div>
                         <span className="text-sm font-medium">Blocked</span>
                       </div>
                     </div>
@@ -483,7 +568,7 @@ const ArtistProfile = () => {
                             variant="outline"
                             size="icon"
                             className="rounded-full h-8 w-8"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)))}
+                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
                           >
                             <ChevronLeft className="h-4 w-4" />
                           </Button>
@@ -491,7 +576,7 @@ const ArtistProfile = () => {
                             variant="outline"
                             size="icon"
                             className="rounded-full h-8 w-8"
-                            onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() + 1)))}
+                            onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
                           >
                             <ChevronRight className="h-4 w-4" />
                           </Button>
@@ -511,35 +596,48 @@ const ArtistProfile = () => {
                           const day = i + 1;
                           const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
                           const dateStr = format(date, 'yyyy-MM-dd');
+                          const todayStr = format(new Date(), 'yyyy-MM-dd');
+                          const isPast = dateStr <= todayStr;
                           const isBlocked = artist?.availability?.blockedDates?.includes(dateStr);
-                          const isBooked = artist?.availability?.bookedDates?.includes(dateStr);
+                          const isBooked = bookedDates.includes(dateStr);
+                          const cannotBook = isPast || isBlocked || isBooked || availabilityLoading || !!availabilityError || !artist.available;
+                          const label = isBooked ? "Booked — unavailable" : isBlocked ? "Unavailable" : isPast ? "Past date" : cannotBook ? "Availability loading" : "Available — select date";
 
                           return (
                             <button
                               key={day}
-                              className={`aspect-square rounded-xl flex items-center justify-center text-sm font-bold transition-all ${isBooked
-                                ? "bg-secondary text-secondary-foreground shadow-inner"
-                                : isBlocked
-                                  ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                                  : "bg-green-500/10 text-green-700 hover:bg-green-500/30 ring-1 ring-inset ring-green-500/20"
+                              type="button"
+                              aria-label={`${format(date, 'PPPP')}: ${label}`}
+                              title={label}
+                              className={`aspect-square min-h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 border text-sm font-bold transition-colors ${isBooked
+                                ? "cursor-not-allowed border-red-400 bg-red-100 text-red-800"
+                                : isPast || isBlocked
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                  : availabilityLoading || availabilityError || !artist.available
+                                    ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                                    : "border-green-300 bg-green-50 text-green-800 hover:border-green-600 hover:bg-green-100 focus-visible:ring-2 focus-visible:ring-green-600"
                                 }`}
-                              disabled={isBlocked || isBooked}
+                              disabled={cannotBook}
                               onClick={() => {
                                 setSelectedDate(date);
                                 setIsBookingModalOpen(true);
                               }}
                             >
-                              {day}
+                              <span>{day}</span>
+                              {isBooked && <span className="text-[9px] font-medium leading-none">Booked</span>}
                             </button>
                           );
                         })}
                       </div>
                     </div>
 
-                    <div className="mt-10 text-center">
-                      <Button size="lg" className="bg-gradient-saffron px-10 rounded-full shadow-lg shadow-saffron-200" onClick={() => setIsBookingModalOpen(true)}>
-                        <Calendar className="mr-2 h-5 w-5" />
-                        Check Availability
+                    <div className="mt-6 space-y-3 text-center">
+                      {availabilityLoading && <p className="text-sm text-muted-foreground">Loading booked dates…</p>}
+                      {availabilityError && <p role="alert" className="text-sm text-red-700">{availabilityError}</p>}
+                      {!artist.available && <p className="text-sm text-red-700">This artist isn't accepting bookings right now.</p>}
+                      <p className="text-sm text-muted-foreground">Choose a green date above. You'll enter your event location and message next.</p>
+                      <Button variant="outline" size="sm" disabled={availabilityLoading} onClick={() => setAvailabilityRefresh(n => n + 1)}>
+                        Refresh availability
                       </Button>
                     </div>
                   </CardContent>
@@ -556,32 +654,79 @@ const ArtistProfile = () => {
                       <span className="text-5xl font-extrabold text-foreground">{artist.rating || 0}</span>
                       <div className="flex my-3">
                         {Array.from({ length: 5 }, (_, i) => (
-                          <Star key={i} className={`h-5 w-5 ${i < Math.floor(artist.rating || 0) ? "fill-saffron-500 text-saffron-500" : "text-muted"}`} />
+                          <Star key={i} strokeWidth={1.8} className={`h-5 w-5 ${starStyle(i < Math.floor(artist.rating || 0))}`} />
                         ))}
                       </div>
                       <p className="text-muted-foreground text-sm">Average rating from {artist.reviewsCount || 0} reviews</p>
                     </Card>
 
-                    {/* Write a Review Section */}
-                    <Card className="rounded-3xl border-none bg-card shadow-lg p-6">
-                      <h4 className="font-bold text-lg mb-4">Write a Review</h4>
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => setReviewRating(star)}
-                              className="focus:outline-none"
-                            >
-                              <Star className={`h-6 w-6 ${star <= reviewRating ? "fill-saffron-500 text-saffron-500" : "text-muted"}`} />
-                            </button>
+                    {/* Don't invite repeat submissions: the backend permits one review per customer. */}
+                    {user?.role !== "customer" ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <h4 className="mb-2 text-lg font-bold">Leave a Review</h4>
+                        <p className="mb-4 text-sm text-muted-foreground">Sign in as a customer after completing a booking to leave feedback.</p>
+                        <Button asChild variant="outline"><Link to="/login">Customer login</Link></Button>
+                      </Card>
+                    ) : isCheckingOwnReview ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <p className="text-sm text-muted-foreground">Checking your review…</p>
+                      </Card>
+                    ) : reviewLookupFailed ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <p className="text-sm text-muted-foreground">Couldn't check your review history. Refresh the page or sign in again.</p>
+                      </Card>
+                    ) : ownReview && !isEditingReview ? (
+                      <Card className="rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950 shadow-sm">
+                        <h4 className="mb-2 text-lg font-bold">Your published review</h4>
+                        <div className="mb-3 flex items-center gap-1" aria-label={`Your rating: ${ownReview.rating} out of 5 stars`}>
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <Star key={star} strokeWidth={1.8} className={`h-5 w-5 ${starStyle(star <= ownReview.rating)}`} />
                           ))}
+                        </div>
+                        <p className="mb-4 whitespace-pre-wrap break-words text-sm">{ownReview.comment || "No written comment."}</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full border-green-300 bg-white text-green-950 hover:bg-green-100"
+                          onClick={() => {
+                            setReviewRating(ownReview.rating);
+                            setReviewComment(ownReview.comment);
+                            setIsEditingReview(true);
+                          }}
+                        >
+                          Edit review
+                        </Button>
+                      </Card>
+                    ) : (
+                    <Card className="rounded-3xl border-none bg-card shadow-lg p-6">
+                      <h4 className="font-bold text-lg mb-4">{isEditingReview ? "Edit your review" : "Write a Review"}</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="mb-2 text-sm font-medium text-foreground">Your rating</p>
+                          <div className="flex items-center gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                disabled={isSubmittingReview}
+                                aria-label={`Rate ${star} ${star === 1 ? "star" : "stars"}`}
+                                aria-pressed={star === reviewRating}
+                                onClick={() => setReviewRating(star)}
+                                className="rounded-lg p-1.5 transition-transform hover:scale-110 hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                              >
+                                <Star strokeWidth={1.8} className={`h-8 w-8 transition-colors ${starStyle(star <= reviewRating)}`} />
+                              </button>
+                            ))}
+                            <span className="ml-2 text-sm font-medium text-muted-foreground">{reviewRating ? `${reviewRating}/5` : "Select stars"}</span>
+                          </div>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="review-comment">Your Comment</Label>
                           <textarea
                             id="review-comment"
                             value={reviewComment}
+                            maxLength={1000}
+                            disabled={isSubmittingReview}
                             onChange={(e) => setReviewComment(e.target.value)}
                             placeholder="Share your experience..."
                             className="w-full min-h-[100px] rounded-xl border border-border bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -589,40 +734,57 @@ const ArtistProfile = () => {
                         </div>
                         <Button
                           className="w-full rounded-full bg-primary"
-                          disabled={isSubmittingReview || !reviewComment}
+                          disabled={isSubmittingReview || reviewRating === 0 || !reviewComment.trim()}
                           onClick={async () => {
                             setIsSubmittingReview(true);
                             try {
                               const token = localStorage.getItem('token');
-                              const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/${artist._id}/reviews`, {
-                                method: 'POST',
+                              const response = await fetch(
+                                `${import.meta.env.VITE_API_URL}/api/artists/${artist._id}${isEditingReview ? "/my-review" : "/reviews"}`,
+                                {
+                                method: isEditingReview ? 'PATCH' : 'POST',
                                 headers: {
                                   'Content-Type': 'application/json',
                                   'Authorization': `Bearer ${token}`
                                 },
                                 body: JSON.stringify({ rating: reviewRating, comment: reviewComment })
                               });
-                              if (response.ok) {
-                                // Refresh artist data
-                                const res = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/${artist._id}`);
-                                const data = await res.json();
-                                setArtist(data);
-                                setReviewComment("");
-                                setReviewRating(5);
-                                toast.success("Review submitted!");
-                              }
+                              const data = await response.json();
+                              if (!response.ok) throw new Error(data?.message || "Failed to submit review");
+                              setArtist(isEditingReview ? data.artist : data);
+                              setOwnReview(isEditingReview ? data.review : { rating: reviewRating, comment: reviewComment.trim() });
+                              setIsEditingReview(false);
+                              setReviewComment("");
+                              setReviewRating(0);
+                              toast.success(isEditingReview ? "Review updated!" : "Review submitted!");
                             } catch (e) {
-                              toast.error("Failed to submit review");
+                              toast.error(e instanceof Error ? e.message : "Failed to submit review");
                             } finally {
                               setIsSubmittingReview(false);
                             }
                           }}
                         >
                           {isSubmittingReview ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                          Submit Review
+                          {isEditingReview ? "Save changes" : "Submit Review"}
                         </Button>
+                        {isEditingReview && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full rounded-full"
+                            disabled={isSubmittingReview}
+                            onClick={() => {
+                              setIsEditingReview(false);
+                              setReviewRating(0);
+                              setReviewComment("");
+                            }}
+                          >
+                            Cancel editing
+                          </Button>
+                        )}
                       </div>
                     </Card>
+                    )}
                   </div>
 
                   <Card className="lg:col-span-2 rounded-3xl border-none bg-transparent shadow-none">
@@ -630,30 +792,31 @@ const ArtistProfile = () => {
                       <CardTitle className="text-2xl font-display">Voice of the Audience</CardTitle>
                     </CardHeader>
                     <CardContent className="px-0 space-y-4">
-                      {artist?.customerReviews?.length > 0 ? (
-                        artist.customerReviews.map((review: any, idx: number) => (
-                          <div key={review.id || review._id} className="rounded-2xl border bg-card p-6 shadow-sm hover:shadow-md transition-all">
+                      {displayedReviews.length > 0 ? (
+                        displayedReviews.map((review: any, idx: number) => (
+                          <div key={review._id || review.id || idx} className="rounded-2xl border bg-card p-6 shadow-sm hover:shadow-md transition-all">
                             <div className="mb-4 flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/5 border border-primary/10 font-bold text-primary text-lg">
-                                  {review.user?.charAt(0) || 'U'}
+                                  {(review.name || review.user || 'C').charAt(0).toUpperCase()}
                                 </div>
                                 <div>
-                                  <p className="font-bold text-foreground text-lg">{review.user || 'User'}</p>
-                                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{review.date || 'March 2026'}</p>
+                                  <p className="font-bold text-foreground text-lg">{review.name || review.user || 'Customer'}</p>
+                                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{review.createdAt ? new Date(review.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : (review.date || "")}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-0.5">
                                 {Array.from({ length: 5 }, (_, i) => (
                                   <Star
                                     key={i}
-                                    className={`h-4 w-4 ${i < (review.rating || 0) ? "fill-saffron-500 text-saffron-500" : "text-muted"}`}
+                                    strokeWidth={1.8}
+                                     className={`h-4 w-4 ${starStyle(i < (review.rating || 0))}`}
                                   />
                                 ))}
                               </div>
                             </div>
                             <p className="text-muted-foreground leading-relaxed italic">
-                              "{review.comment || 'An incredible experience that exceeded all expectations.'}"
+                              {review.comment ? `“${review.comment}”` : "No written comment."}
                             </p>
                           </div>
                         ))

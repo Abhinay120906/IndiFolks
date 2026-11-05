@@ -12,10 +12,12 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ArtistTaxonomyFields from "@/components/ArtistTaxonomyFields";
+import { ART_ILLUSTRATIONS } from "@/lib/artIllustrations";
 
 export default function Register() {
     const [searchParams] = useSearchParams();
-    const initialRole = searchParams.get('role') || 'customer';
+    const initialRole = searchParams.get('role') === 'artist' ? 'artist' : 'customer';
 
     const [formData, setFormData] = useState({
         name: '',
@@ -25,8 +27,8 @@ export default function Register() {
         bio: '',
         state: '',
         specialty: '',
+        artForm: '',
         awards: '',
-        aadharNumber: '',
     });
 
     const [profileImage, setProfileImage] = useState<File | null>(null);
@@ -51,6 +53,10 @@ export default function Register() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (formData.role === 'artist' && (!formData.state.trim() || !formData.artForm.trim())) {
+            toast({ variant: 'destructive', title: 'Missing artist details', description: 'Choose your state and art form, or enter them using Other.' });
+            return;
+        }
         setIsLoading(true);
 
         try {
@@ -66,8 +72,8 @@ export default function Register() {
                 submitData.append('bio', formData.bio);
                 submitData.append('state', formData.state);
                 submitData.append('specialty', formData.specialty);
+                submitData.append('artForm', formData.artForm);
                 submitData.append('awards', formData.awards);
-                submitData.append('aadharNumber', formData.aadharNumber);
                 submitData.append('profileImage', profileImage);
                 bodyData = submitData;
                 // Don't set Content-Type header when sending FormData, browser will set it with the boundary
@@ -77,6 +83,7 @@ export default function Register() {
                     payload.bio = '';
                     payload.state = '';
                     payload.specialty = '';
+                    payload.artForm = '';
                     payload.awards = '';
                 }
                 bodyData = JSON.stringify(payload);
@@ -133,11 +140,10 @@ export default function Register() {
                     </CardHeader>
                     <Tabs value={formData.role} onValueChange={(val) => setFormData(prev => ({ ...prev, role: val }))} className="w-full">
                         <div className="px-6 pt-2">
-                            <TabsList className="grid w-full grid-cols-3">
+                            <TabsList className="grid w-full grid-cols-2">
                                 <TabsTrigger value="customer">Customer</TabsTrigger>
                                 <TabsTrigger value="artist">Artist</TabsTrigger>
-                                <TabsTrigger value="admin">Admin</TabsTrigger>
-                            </TabsList>
+                                </TabsList>
                         </div>
 
                         <form onSubmit={handleSubmit}>
@@ -159,7 +165,7 @@ export default function Register() {
                                             value={formData.password}
                                             onChange={handleChange}
                                             required
-                                            minLength={6}
+                                            minLength={8}
                                             className="pr-10"
                                         />
                                         <button
@@ -174,11 +180,28 @@ export default function Register() {
 
                                 {formData.role === 'artist' && (
                                     <div className="space-y-4 mt-4 p-4 border rounded-md bg-muted/50 transition-all animate-in fade-in slide-in-from-top-2">
-                                        <h3 className="font-semibold text-sm">Artist Details</h3>
+                                        <h3 className="font-semibold text-sm">Tell customers where to find your art</h3>
+                                        <div className="grid grid-cols-3 gap-2" aria-label="Examples of Indian performance art">
+                                            {[
+                                                ['Classical Dance', ART_ILLUSTRATIONS['Classical Dance']],
+                                                ['Folk Music', ART_ILLUSTRATIONS['Folk Music']],
+                                                ['Traditional Arts', ART_ILLUSTRATIONS['Traditional Arts']]
+                                            ].map(([title,src]) => (
+                                                <div key={title} className="overflow-hidden rounded-lg bg-card">
+                                                    <img src={src} alt={`${title} illustration`} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                                                    <p className="px-1 py-2 text-center text-[10px] font-medium">{title}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Choose a recognised state and art form so visitors can discover you in search.
+                                            Can't find your tradition? Select Other and enter its name.
+                                        </p>
 
                                         <div className="space-y-2">
                                             <Label htmlFor="profileImage">Profile Image</Label>
-                                            <Input id="profileImage" type="file" accept="image/*" onChange={handleImageChange} required />
+                                            <Input id="profileImage" type="file" accept="image/*" onChange={handleImageChange} />
+                                            <p className="text-xs text-muted-foreground">Optional. Profile images require cloud storage to be configured.</p>
                                             {imagePreview && (
                                                 <div className="mt-2">
                                                     <p className="text-sm text-muted-foreground mb-1">Preview:</p>
@@ -187,23 +210,21 @@ export default function Register() {
                                             )}
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="aadharNumber">Aadhar Number (Mandatory)</Label>
-                                            <Input id="aadharNumber" value={formData.aadharNumber} onChange={handleChange} required placeholder="12-digit Aadhar Number" minLength={12} maxLength={12} />
-                                        </div>
+
 
                                         <div className="space-y-2">
                                             <Label htmlFor="bio">Bio</Label>
                                             <Input id="bio" value={formData.bio} onChange={handleChange} required />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="state">State</Label>
-                                            <Input id="state" value={formData.state} onChange={handleChange} required placeholder="e.g. Maharashtra" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="specialty">Specialty</Label>
-                                            <Input id="specialty" value={formData.specialty} onChange={handleChange} required placeholder="e.g. Fine Art, Sculpture" />
-                                        </div>
+                                        <ArtistTaxonomyFields
+                                            required
+                                            state={formData.state}
+                                            artForm={formData.artForm}
+                                            specialty={formData.specialty}
+                                            onStateChange={value=>setFormData(prev=>({...prev,state:value}))}
+                                            onArtFormChange={value=>setFormData(prev=>({...prev,artForm:value}))}
+                                            onSpecialtyChange={value=>setFormData(prev=>({...prev,specialty:value}))}
+                                        />
                                         <div className="space-y-2">
                                             <Label htmlFor="awards">Awards (Optional)</Label>
                                             <Input id="awards" value={formData.awards} onChange={handleChange} placeholder="e.g. National Art Prize 2023" />

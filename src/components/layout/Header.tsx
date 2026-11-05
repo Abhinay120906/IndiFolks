@@ -23,11 +23,11 @@ const Header = () => {
       {artist && <nav className="if-nav-links"><Link to="/artist/dashboard" className="active">Dashboard</Link></nav>}
       <div className="if-nav-actions">
         {!artist && <Link to="/profile" aria-label="Wishlist" className="if-icon-button"><Heart size={19}/></Link>}
-        {isAuthenticated ? <><Link to="/profile" className="if-profile-link"><UserRound size={17}/> Profile</Link><button onClick={logout} className="if-outline-button">Logout</button></> : <><Link to="/login" className="if-login">Log in</Link><Link to="/register" className="if-primary-button if-small">Get started</Link></>}
+        {isAuthenticated ? <>{user?.role === "customer" && <Link to="/bookings" className="if-profile-link">My bookings</Link>}<Link to="/profile" className="if-profile-link"><UserRound size={17}/> {artist ? "My Profile" : "Profile"}</Link><button onClick={logout} className="if-outline-button">Logout</button></> : <><Link to="/login" className="if-login">Log in</Link><Link to="/register" className="if-primary-button if-small">Get started</Link></>}
       </div>
       <button className="if-mobile-toggle" onClick={() => setOpen(v => !v)} aria-label="Open menu">{open ? <X/> : <Menu/>}</button>
     </div>
-    {open && <div className="if-mobile-menu"><div className="if-container">{links.map(link => <Link onClick={() => setOpen(false)} key={link.href} to={link.href}>{link.label}</Link>)}<Link onClick={() => setOpen(false)} to="/about">How it works</Link><div className="if-mobile-divider"/>{isAuthenticated ? <><Link onClick={() => setOpen(false)} to="/profile">Profile</Link><button onClick={logout}>Logout</button></> : <><Link onClick={() => setOpen(false)} to="/login">Log in</Link><Link onClick={() => setOpen(false)} to="/register" className="if-primary-button">Get started</Link></>}</div></div>}
+    {open && <div className="if-mobile-menu"><div className="if-container">{links.map(link => <Link onClick={() => setOpen(false)} key={link.href} to={link.href}>{link.label}</Link>)}<Link onClick={() => setOpen(false)} to="/about">How it works</Link><div className="if-mobile-divider"/>{isAuthenticated ? <>{user?.role === "customer" && <Link onClick={() => setOpen(false)} to="/bookings">My bookings</Link>}<Link onClick={() => setOpen(false)} to="/profile">{artist ? "My Profile" : "Profile"}</Link><button onClick={logout}>Logout</button></> : <><Link onClick={() => setOpen(false)} to="/login">Log in</Link><Link onClick={() => setOpen(false)} to="/register" className="if-primary-button">Get started</Link></>}</div></div>}
   </header>;
 };
 export default Header;

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import MainLayout from "@/components/layout/MainLayout";
 
-const regions = ["All", "North", "South", "East", "West", "Central", "Northeast", "Islands"];
+const regions = ["All", "North", "South", "East", "West", "Central", "Northeast", "Islands", "Other"];
 
 const States = () => {
   const [states, setStates] = useState<any[]>([]);
@@ -96,7 +96,7 @@ const States = () => {
 
           {/* Results Count */}
           <p className="mb-6 text-sm text-muted-foreground">
-            Showing {filteredStates.length} of {states.length} states & territories
+            Showing {filteredStates.length} of {states.length} locations (states, territories and other regions)
           </p>
 
           {/* States Grid */}

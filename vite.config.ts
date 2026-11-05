@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }: ConfigEnv) => ({
+  base: mode === 'production' ? '/IndiFolks/' : '/',
   server: {
     host: "::",
     port: 8080,

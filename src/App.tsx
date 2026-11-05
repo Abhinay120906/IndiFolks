@@ -18,6 +18,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
 import AdminDashboard from "./pages/AdminDashboard";
 import ArtistDashboard from "./pages/ArtistDashboard";
+import MyBookings from "./pages/MyBookings";
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/bookings" element={<MyBookings />} />
 
             {/* Admin routes */}
             <Route path="/admin/login" element={<AdminLogin />} />

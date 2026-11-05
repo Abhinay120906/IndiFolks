@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import {
     Dialog,
     DialogContent,
@@ -11,14 +11,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface BookingModalProps {
@@ -27,11 +21,12 @@ interface BookingModalProps {
     artistId: string;
     artistName: string;
     price: number;
+    selectedDate: Date | null;
+    onAvailabilityChanged?: () => void;
     initialPackage?: any;
 }
 
-const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice, initialPackage }: BookingModalProps) => {
-    const [date, setDate] = useState<Date>();
+const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice, selectedDate, onAvailabilityChanged, initialPackage }: BookingModalProps) => {
     const [message, setMessage] = useState("");
     const [location, setLocation] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,8 +35,8 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
     const bookingPrice = initialPackage ? initialPackage.price : basePrice;
 
     const handleBooking = async () => {
-        if (!date) {
-            toast.error("Please select a date for the booking");
+        if (!selectedDate) {
+            toast.error("Select an available date on the artist calendar first");
             return;
         }
 
@@ -61,7 +56,7 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
                 },
                 body: JSON.stringify({
                     artistId,
-                    date,
+                    date: format(selectedDate, "yyyy-MM-dd"),
                     message,
                     location,
                     pricingPackage: initialPackage
@@ -70,16 +65,21 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
 
             if (response.ok) {
                 setIsSuccess(true);
+                onAvailabilityChanged?.();
                 toast.success("Booking request sent successfully!");
                 setTimeout(() => {
                     onClose();
                     setIsSuccess(false);
-                    setDate(undefined);
                     setMessage("");
+                    setLocation("");
                 }, 2000);
             } else {
-                const data = await response.json();
+                const data = await response.json().catch(() => ({}));
                 toast.error(data.message || "Failed to create booking");
+                if (response.status === 409) {
+                    onAvailabilityChanged?.();
+                    onClose();
+                }
             }
         } catch (error) {
             toast.error("An error occurred. Please try again.");
@@ -90,49 +90,32 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto rounded-2xl border border-[#e5ddd3] bg-[#fffdfa] p-6 text-[#231f1b] shadow-[0_24px_80px_rgba(0,0,0,0.32)] sm:max-w-[460px]">
                 {isSuccess ? (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                         <CheckCircle2 className="mb-4 h-16 w-16 text-green-500" />
                         <h3 className="text-xl font-bold">Booking Requested!</h3>
                         <p className="text-muted-foreground text-sm">
-                            Your request for {artistName} has been sent. You will be notified once they confirm.
+                            Your request for {artistName} has been sent. Once the artist accepts, visit My bookings to simulate a payment. No money will be charged.
                         </p>
+                        <Button asChild className="mt-5"><Link to="/bookings" onClick={onClose}>View my bookings</Link></Button>
                     </div>
                 ) : (
                     <>
                         <DialogHeader>
                             <DialogTitle>Book {artistName}</DialogTitle>
                             <DialogDescription>
-                                Select a date and add an optional message for the artist.
+                                Confirm the date chosen on the calendar, then provide your event location.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Select Date</label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                                "w-full justify-start text-left font-normal",
-                                                !date && "text-muted-foreground"
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {date ? format(date, "PPP") : <span>Pick a date</span>}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar
-                                            mode="single"
-                                            selected={date}
-                                            onSelect={setDate}
-                                            initialFocus
-                                            disabled={(date) => date < new Date()}
-                                        />
-                                    </PopoverContent>
-                                </Popover>
+                                <label className="text-sm font-medium">Selected event date</label>
+                                <div className="flex items-center gap-3 rounded-xl border border-[#e5ddd3] bg-[#f6f1e9] p-3 text-[#231f1b]">
+                                    <CalendarIcon className="h-5 w-5 text-[#c86432]" />
+                                    <span className="font-semibold">{selectedDate ? format(selectedDate, "PPPP") : "Select a green date on the calendar"}</span>
+                                </div>
+                                <p className="text-xs text-[#695f54]">To change the date, close this form and select another day on the calendar.</p>
                             </div>
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium">Event Location</label>
@@ -170,8 +153,8 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
                             <Button variant="outline" onClick={onClose}>Cancel</Button>
                             <Button
                                 onClick={handleBooking}
-                                disabled={isSubmitting}
-                                className="bg-gradient-saffron hover:opacity-90"
+                                disabled={isSubmitting || !selectedDate || !location.trim()}
+                                className="bg-[#c86432] text-white hover:bg-[#ab4e20] focus-visible:ring-[#c86432]"
                             >
                                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Confirm Booking
