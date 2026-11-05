@@ -34,12 +34,15 @@ const ArtistDashboard = () => {
     const [name, setName] = useState("");
     const [bio, setBio] = useState("");
     const [specialty, setSpecialty] = useState("");
+    const [stateLocation, setStateLocation] = useState("");
     const [experience, setExperience] = useState("");
     const [price, setPrice] = useState(0);
     const [story, setStory] = useState("");
     const [packages, setPackages] = useState<any[]>([]);
     const [gallery, setGallery] = useState<any[]>([]);
     const [newImages, setNewImages] = useState<FileList | null>(null);
+    const [newProfileImage, setNewProfileImage] = useState<File | null>(null);
+    const [fileInputVersion, setFileInputVersion] = useState(0);
     const [galleryToDelete, setGalleryToDelete] = useState<string[]>([]);
     const [isAvailable, setIsAvailable] = useState(true);
 
@@ -70,6 +73,7 @@ const ArtistDashboard = () => {
             setName(data.name || "");
             setBio(data.bio || "");
             setSpecialty(data.specialty || "");
+            setStateLocation(data.state || "");
             setExperience(data.experience || "");
             setPrice(data.price || 0);
             setStory(data.story || "");
@@ -123,6 +127,23 @@ const ArtistDashboard = () => {
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
+        const files = [...(newImages ? Array.from(newImages) : []), ...(newProfileImage ? [newProfileImage] : [])];
+        if (files.some(file => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type))) {
+            toast.error("Only JPG, PNG and WebP images are supported");
+            return;
+        }
+        if (files.some(file => file.size > 4 * 1024 * 1024)) {
+            toast.error("Each image must be 4 MB or smaller");
+            return;
+        }
+        if (newImages && newImages.length > 8) {
+            toast.error("Select at most 8 gallery photos per upload");
+            return;
+        }
+        if (files.length && profile?.imageUploadsEnabled === false) {
+            toast.error("Cloudinary is not configured. Set your backend Cloudinary environment variables before uploading.");
+            return;
+        }
         setIsSaving(true);
         try {
             const token = localStorage.getItem('token');
@@ -130,38 +151,39 @@ const ArtistDashboard = () => {
             formData.append('name', name);
             formData.append('bio', bio);
             formData.append('specialty', specialty);
+            formData.append('state', stateLocation);
             formData.append('experience', experience);
             formData.append('price', price.toString());
             formData.append('story', story);
-            // Allow updating approvalStatus through profile update if it's 'draft'
-            if (profile?.approvalStatus === 'draft') {
-                formData.append('approvalStatus', 'draft');
-            }
             formData.append('pricing', JSON.stringify({ packages, addOns: profile?.pricing?.addOns || [] }));
             formData.append('galleryToDelete', JSON.stringify(galleryToDelete));
-
-            if (newImages) {
-                Array.from(newImages).forEach(file => {
-                    formData.append('images', file);
-                });
-            }
+            if (newProfileImage) formData.append('profileImage', newProfileImage);
+            for (const file of Array.from(newImages || [])) formData.append('images', file);
 
             const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/profile`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: { Authorization: `Bearer ${token}` },
                 body: formData
             });
-
-            if (response.ok) {
-                toast.success("Profile updated successfully");
-                fetchProfile();
-                setNewImages(null);
-                setGalleryToDelete([]);
-            } else {
-                toast.error("Failed to update profile");
-            }
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.message || `Unable to update profile (HTTP ${response.status})`);
+            setProfile(data);
+            setName(data.name || "");
+            setBio(data.bio || "");
+            setSpecialty(data.specialty || "");
+            setStateLocation(data.state || "");
+            setExperience(data.experience || "");
+            setStory(data.story || "");
+            setPrice(data.price || 0);
+            setPackages(data.pricing?.packages || []);
+            setGallery(data.gallery || []);
+            setNewImages(null);
+            setNewProfileImage(null);
+            setGalleryToDelete([]);
+            setFileInputVersion(v => v + 1);
+            toast.success("Profile saved successfully");
         } catch (error) {
-            toast.error("An error occurred");
+            toast.error(error instanceof Error ? error.message : "Profile could not be saved");
         } finally {
             setIsSaving(false);
         }
@@ -568,7 +590,11 @@ const ArtistDashboard = () => {
                                         <Label htmlFor="name">Artist Stage Name</Label>
                                         <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="stateLocation">State</Label>
+                                        <Input id="stateLocation" value={stateLocation} onChange={(e) => setStateLocation(e.target.value)} placeholder="e.g. West Bengal" />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <div className="grid gap-2">
                                             <Label htmlFor="specialty">Primary Specialty</Label>
                                             <Input id="specialty" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Kathakali, Baul Singing" />
@@ -597,11 +623,41 @@ const ArtistDashboard = () => {
                                 </CardContent>
                             </Card>
 
+                            {/* Profile photo */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Profile Photo</CardTitle>
+                                    <CardDescription>This picture appears on your artist listing and profile.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex flex-wrap items-center gap-6">
+                                    {profile?.profileImage ? (
+                                        <img src={profile.profileImage} alt="Current artist profile" className="h-24 w-24 rounded-full border object-cover" />
+                                    ) : (
+                                        <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted text-3xl font-semibold">
+                                            {(profile?.name || 'A').charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <div className="min-w-0 flex-1 space-y-3">
+                                        <Label htmlFor="artist-avatar">Upload or replace profile picture</Label>
+                                        <Input
+                                            key={`avatar-${fileInputVersion}`}
+                                            id="artist-avatar"
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            disabled={isSaving || profile?.imageUploadsEnabled === false}
+                                            onChange={e => setNewProfileImage(e.target.files?.[0] || null)}
+                                        />
+                                        {newProfileImage && <p className="text-sm text-primary">Selected: {newProfileImage.name}</p>}
+                                        <p className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 4 MB. Save profile to upload.</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
                             {/* Gallery */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Performance Gallery</CardTitle>
-                                    <CardDescription>Upload high-quality images of your performances</CardDescription>
+                                    <CardDescription>Upload up to 8 pictures at a time (maximum 24 saved). Files must be JPG, PNG or WebP, under 4 MB each.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="grid gap-6">
                                     <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
@@ -621,12 +677,12 @@ const ArtistDashboard = () => {
                                                 </div>
                                             </div>
                                         ))}
-                                        <label className="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 transition-colors hover:border-primary/50 hover:bg-muted/50">
+                                        <label className={`flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/25 transition-colors ${profile?.imageUploadsEnabled === false ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-primary/50 hover:bg-muted/50'}`}>
                                             <div className="mb-2 rounded-full bg-primary/10 p-2 text-primary">
                                                 <Upload className="h-6 w-6" />
                                             </div>
                                             <span className="text-xs font-bold text-muted-foreground">Upload Images</span>
-                                            <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => setNewImages(e.target.files)} />
+                                            <input key={`gallery-${fileInputVersion}`} type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" disabled={isSaving || profile?.imageUploadsEnabled === false} onChange={(e) => setNewImages(e.target.files)} />
                                         </label>
                                     </div>
                                     {newImages && (
@@ -634,6 +690,15 @@ const ArtistDashboard = () => {
                                             <CheckCircle2 className="h-4 w-4" />
                                             {newImages.length} new images selected to upload
                                         </p>
+                                    )}
+                                    {profile?.imageUploadsEnabled === false && (
+                                        <p role="note" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                                            Cloudinary image storage is not configured on this backend.
+                                            You can save text details now; image uploads will become available after Cloudinary credentials are added.
+                                        </p>
+                                    )}
+                                    {galleryToDelete.length > 0 && (
+                                        <p className="text-sm text-amber-700">{galleryToDelete.length} image(s) selected for deletion. Click Save Profile Changes to apply.</p>
                                     )}
                                 </CardContent>
                             </Card>
