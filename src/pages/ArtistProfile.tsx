@@ -16,9 +16,11 @@ import { toast } from "sonner";
 import MainLayout from "@/components/layout/MainLayout";
 import BookingModal from "@/components/BookingModal";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const ArtistProfile = () => {
   const { id } = useParams();
+  const { user } = useAuth();
   const [artist, setArtist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -30,6 +32,9 @@ const ArtistProfile = () => {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [ownReview, setOwnReview] = useState<{rating: number; comment: string} | null>(null);
+  const [isCheckingOwnReview, setIsCheckingOwnReview] = useState(false);
+  const [reviewLookupFailed, setReviewLookupFailed] = useState(false);
 
   useEffect(() => {
     const fetchArtist = async () => {
@@ -46,6 +51,34 @@ const ArtistProfile = () => {
     };
     fetchArtist();
   }, [id]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    setOwnReview(null);
+    setReviewLookupFailed(false);
+    if (!id || user?.role !== "customer" || !token) {
+      setIsCheckingOwnReview(false);
+      return;
+    }
+    let cancelled = false;
+    setIsCheckingOwnReview(true);
+    const loadOwnReview = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/artists/${id}/my-review`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error("Unable to check previous reviews");
+        const data = await response.json();
+        if (!cancelled) setOwnReview(data.review ?? null);
+      } catch {
+        if (!cancelled) setReviewLookupFailed(true);
+      } finally {
+        if (!cancelled) setIsCheckingOwnReview(false);
+      }
+    };
+    void loadOwnReview();
+    return () => { cancelled = true; };
+  }, [id, user?._id, user?.role]);
 
   if (isLoading) {
     return (
@@ -571,7 +604,32 @@ const ArtistProfile = () => {
                       <p className="text-muted-foreground text-sm">Average rating from {artist.reviewsCount || 0} reviews</p>
                     </Card>
 
-                    {/* Write a Review Section */}
+                    {/* Don't invite repeat submissions: the backend permits one review per customer. */}
+                    {user?.role !== "customer" ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <h4 className="mb-2 text-lg font-bold">Leave a Review</h4>
+                        <p className="mb-4 text-sm text-muted-foreground">Sign in as a customer after completing a booking to leave feedback.</p>
+                        <Button asChild variant="outline"><Link to="/login">Customer login</Link></Button>
+                      </Card>
+                    ) : isCheckingOwnReview ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <p className="text-sm text-muted-foreground">Checking your review…</p>
+                      </Card>
+                    ) : reviewLookupFailed ? (
+                      <Card className="rounded-3xl border-none bg-card p-6 shadow-lg">
+                        <p className="text-sm text-muted-foreground">Couldn't check your review history. Refresh the page or sign in again.</p>
+                      </Card>
+                    ) : ownReview ? (
+                      <Card className="rounded-3xl border border-green-200 bg-green-50 p-6 text-green-950 shadow-sm">
+                        <h4 className="mb-2 text-lg font-bold">You've already reviewed this artist</h4>
+                        <div className="mb-2 flex items-center gap-1" aria-label={`Your rating: ${ownReview.rating} out of 5 stars`}>
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <Star key={star} strokeWidth={1.8} className={`h-5 w-5 ${starStyle(star <= ownReview.rating)}`} />
+                          ))}
+                        </div>
+                        <p className="text-sm">Your review has been published. Thank you for sharing your experience.</p>
+                      </Card>
+                    ) : (
                     <Card className="rounded-3xl border-none bg-card shadow-lg p-6">
                       <h4 className="font-bold text-lg mb-4">Write a Review</h4>
                       <div className="space-y-4">
@@ -621,6 +679,7 @@ const ArtistProfile = () => {
                               const data = await response.json();
                               if (!response.ok) throw new Error(data?.message || "Failed to submit review");
                               setArtist(data);
+                              setOwnReview({ rating: reviewRating, comment: reviewComment.trim() });
                               setReviewComment("");
                               setReviewRating(0);
                               toast.success("Review submitted!");
@@ -636,6 +695,7 @@ const ArtistProfile = () => {
                         </Button>
                       </div>
                     </Card>
+                    )}
                   </div>
 
                   <Card className="lg:col-span-2 rounded-3xl border-none bg-transparent shadow-none">
