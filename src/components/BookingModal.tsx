@@ -97,7 +97,7 @@ const BookingModal = ({ isOpen, onClose, artistId, artistName, price: basePrice,
                         <CheckCircle2 className="mb-4 h-16 w-16 text-green-500" />
                         <h3 className="text-xl font-bold">Booking Requested!</h3>
                         <p className="text-muted-foreground text-sm">
-                            Your request for {artistName} has been sent. Once the artist accepts, visit My bookings to complete a Razorpay test payment.
+                            Your request for {artistName} has been sent. Once the artist accepts, visit My bookings to simulate a payment. No money will be charged.
                         </p>
                         <Button asChild className="mt-5"><Link to="/bookings" onClick={onClose}>View my bookings</Link></Button>
                     </div>
