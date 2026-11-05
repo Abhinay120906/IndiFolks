@@ -243,7 +243,7 @@ const ArtistDashboard = () => {
 
     // Stats calculation
     const totalEarnings = bookings
-        .filter(b => (b.status === 'confirmed' || b.status === 'completed') && b.paymentStatus === 'paid')
+        .filter(b => (b.status === 'confirmed' || b.status === 'completed') && ['paid', 'demo_paid'].includes(b.paymentStatus))
         .reduce((sum, b) => sum + (b.price || 0), 0);
 
     if (isLoading) {
@@ -334,12 +334,12 @@ const ArtistDashboard = () => {
                             </Card>
                             <Card className="border-l-4 border-l-saffron-500">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium">Estimated Earnings</CardTitle>
+                                    <CardTitle className="text-sm font-medium">Demo / Test Payments</CardTitle>
                                     <IndianRupee className="h-4 w-4 text-muted-foreground" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold">₹{totalEarnings.toLocaleString('en-IN')}</div>
-                                    <p className="text-xs text-muted-foreground">From confirmed bookings</p>
+                                    <p className="text-xs text-muted-foreground">Test amounts only — not actual earnings</p>
                                 </CardContent>
                             </Card>
                             <Card className="border-l-4 border-l-purple-500">
@@ -348,7 +348,7 @@ const ArtistDashboard = () => {
                                     <Star className="h-4 w-4 text-muted-foreground fill-yellow-400 text-yellow-400" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{profile?.rating || '4.8'}</div>
+                                    <div className="text-2xl font-bold">{profile?.reviewsCount ? profile?.rating : '—'}</div>
                                     <p className="text-xs text-muted-foreground">Based on {profile?.reviewsCount || 0} reviews</p>
                                 </CardContent>
                             </Card>
@@ -538,7 +538,7 @@ const ArtistDashboard = () => {
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Confirmed</Badge>
-                                                        {booking.paymentStatus === 'paid' ? (
+                                                        {['paid', 'demo_paid'].includes(booking.paymentStatus) ? (
                                                             <Button variant="ghost" size="sm" onClick={() => updateStatus(booking._id, 'completed')}>Mark completed</Button>
                                                         ) : (
                                                             <span className="text-sm text-muted-foreground">Awaiting payment</span>
@@ -791,7 +791,7 @@ const BookingCard = ({ booking, onAction }: { booking: any, onAction: (id: strin
                     {booking.status === 'confirmed' && booking.paymentStatus === 'unpaid' && (
                         <span className="text-sm text-muted-foreground">Awaiting customer payment</span>
                     )}
-                    {booking.status === 'confirmed' && booking.paymentStatus === 'paid' && (
+                    {booking.status === 'confirmed' && ['paid', 'demo_paid'].includes(booking.paymentStatus) && (
                         <Button
                             variant="outline"
                             size="sm"
