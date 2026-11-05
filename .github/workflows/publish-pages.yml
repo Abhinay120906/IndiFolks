@@ -1,0 +1,46 @@
+name: Publish IndiFolks to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: indifolks-gh-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build website for the GitHub Pages subpath
+        env:
+          VITE_API_URL: https://indifolks-api.onrender.com
+        run: npm run build
+
+      - name: Ensure Pages can serve static assets
+        run: touch dist/.nojekyll
+
+      - name: Publish built website to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./dist
+          enable_jekyll: false
+          commit_message: 'deploy: IndiFolks site from main'
