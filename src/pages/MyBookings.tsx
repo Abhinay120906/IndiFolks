@@ -176,3 +176,4 @@ export default function MyBookings() {
       </AlertDialogContent>
     </AlertDialog>
   </MainLayout>;
+}
