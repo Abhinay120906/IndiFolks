@@ -46,8 +46,9 @@ artistsRouter.get('/',asyncRoute(async(req,res)=>{
     const location=normalizeState(artist.state);
     const artForm=artist.artForm||artist.specialty||'';
     if(stateFilter&&stateFilter!=='All States'&&normalizeText(location)!==normalizeText(stateFilter))return false;
+    const broadFilter=formFilter==='Other'||ART_CATEGORIES.some(category=>normalizeText(category)===normalizeText(formFilter));
     if(formFilter&&formFilter!=='All Art Forms'&&!artMatches(artForm,formFilter)&&
-       !artMatches(artist.specialty||'',formFilter))return false;
+       (broadFilter||!artMatches(artist.specialty||'',formFilter)))return false;
     if(search&&![artist.name,artist.specialty,artForm,categoryForArt(artForm),location,artist.bio]
       .some(value=>normalizeText(value).includes(search)))return false;
     return true;
