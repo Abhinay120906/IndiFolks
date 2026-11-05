@@ -18,6 +18,9 @@ services:
         value: production
       - key: CLIENT_ORIGINS
         value: https://abhinay120906.github.io
+      # Explicitly opt in for this non-commercial thesis demonstration only.
+      - key: ENABLE_DEMO_PAYMENTS
+        value: 'true'
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
