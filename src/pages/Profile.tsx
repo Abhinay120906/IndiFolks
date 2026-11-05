@@ -221,7 +221,7 @@ function CustomerProfile() {
                             )}
 
                             <div className="pt-4 flex justify-end">
-                                <Button type="submit" disabled={isLoading} className="bg-gradient-saffron hover:opacity-90 px-8">
+                                <Button type="submit" disabled={isLoading} className="bg-[#c65a2d] px-8 font-semibold text-white hover:bg-[#a44721] hover:text-white">
                                     {isLoading ? (
                                         <>
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
