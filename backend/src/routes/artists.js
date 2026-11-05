@@ -72,6 +72,9 @@ artistsRouter.put('/profile',requireAuth,requireRole('artist'),
   const removedImages=user.gallery.filter(g=>removed.includes(String(g._id)));
   const galleryFiles=req.files?.images||[];
   const avatarFile=req.files?.profileImage?.[0];
+  if(removedImages.some(img=>img.publicId)&&!imageStorageConfigured()) {
+    return res.status(503).json({message:'Cloudinary must be configured before removing previously uploaded gallery images'});
+  }
   if(user.gallery.length-removedImages.length+galleryFiles.length>24) return badRequest(res,'Maximum 24 gallery images allowed');
   if((galleryFiles.length||avatarFile)&&!imageStorageConfigured()) {
     return res.status(503).json({message:'Cloudinary storage is not configured. Add Cloudinary credentials to the backend to upload images.'});
