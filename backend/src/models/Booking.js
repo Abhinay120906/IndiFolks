@@ -4,6 +4,8 @@ const bookingSchema = new mongoose.Schema({
   customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   artist: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   date: { type: Date, required: true },
+  // Local calendar day in Asia/Kolkata, used to prevent overlapping confirmations.
+  eventDay: { type: String, match: /^\\d{4}-\\d{2}-\\d{2}$/ },
   location: { type: String, required: true, trim: true, maxlength: 500 },
   message: { type: String, maxlength: 2000, default: '' },
   price: { type: Number, min: 1, required: true },
@@ -22,4 +24,13 @@ const bookingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 bookingSchema.index({ artist: 1, date: 1 });
+// The same artist must not have two confirmed or completed events on one day.
+// Partial index allows multiple pending inquiries, but at most one accepted event.
+bookingSchema.index(
+  { artist: 1, eventDay: 1 },
+  { unique: true, partialFilterExpression: {
+    eventDay: { $type: 'string' },
+    status: { $in: ['confirmed', 'completed'] }
+  }}
+);
 export const Booking = mongoose.model('Booking', bookingSchema);
