@@ -12,6 +12,8 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ArtistTaxonomyFields from "@/components/ArtistTaxonomyFields";
+import { ART_ILLUSTRATIONS } from "@/lib/artIllustrations";
 
 export default function Register() {
     const [searchParams] = useSearchParams();
@@ -25,6 +27,7 @@ export default function Register() {
         bio: '',
         state: '',
         specialty: '',
+        artForm: '',
         awards: '',
     });
 
@@ -50,6 +53,10 @@ export default function Register() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (formData.role === 'artist' && (!formData.state.trim() || !formData.artForm.trim())) {
+            toast({ variant: 'destructive', title: 'Missing artist details', description: 'Choose your state and art form, or enter them using Other.' });
+            return;
+        }
         setIsLoading(true);
 
         try {
@@ -65,6 +72,7 @@ export default function Register() {
                 submitData.append('bio', formData.bio);
                 submitData.append('state', formData.state);
                 submitData.append('specialty', formData.specialty);
+                submitData.append('artForm', formData.artForm);
                 submitData.append('awards', formData.awards);
                 submitData.append('profileImage', profileImage);
                 bodyData = submitData;
@@ -75,6 +83,7 @@ export default function Register() {
                     payload.bio = '';
                     payload.state = '';
                     payload.specialty = '';
+                    payload.artForm = '';
                     payload.awards = '';
                 }
                 bodyData = JSON.stringify(payload);
@@ -171,7 +180,23 @@ export default function Register() {
 
                                 {formData.role === 'artist' && (
                                     <div className="space-y-4 mt-4 p-4 border rounded-md bg-muted/50 transition-all animate-in fade-in slide-in-from-top-2">
-                                        <h3 className="font-semibold text-sm">Artist Details</h3>
+                                        <h3 className="font-semibold text-sm">Tell customers where to find your art</h3>
+                                        <div className="grid grid-cols-3 gap-2" aria-label="Examples of Indian performance art">
+                                            {[
+                                                ['Classical Dance', ART_ILLUSTRATIONS['Classical Dance']],
+                                                ['Folk Music', ART_ILLUSTRATIONS['Folk Music']],
+                                                ['Traditional Arts', ART_ILLUSTRATIONS['Traditional Arts']]
+                                            ].map(([title,src]) => (
+                                                <div key={title} className="overflow-hidden rounded-lg bg-card">
+                                                    <img src={src} alt={`${title} illustration`} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                                                    <p className="px-1 py-2 text-center text-[10px] font-medium">{title}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Choose a recognised state and art form so visitors can discover you in search.
+                                            Can't find your tradition? Select Other and enter its name.
+                                        </p>
 
                                         <div className="space-y-2">
                                             <Label htmlFor="profileImage">Profile Image</Label>
@@ -191,14 +216,15 @@ export default function Register() {
                                             <Label htmlFor="bio">Bio</Label>
                                             <Input id="bio" value={formData.bio} onChange={handleChange} required />
                                         </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="state">State</Label>
-                                            <Input id="state" value={formData.state} onChange={handleChange} required placeholder="e.g. Maharashtra" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="specialty">Specialty</Label>
-                                            <Input id="specialty" value={formData.specialty} onChange={handleChange} required placeholder="e.g. Fine Art, Sculpture" />
-                                        </div>
+                                        <ArtistTaxonomyFields
+                                            required
+                                            state={formData.state}
+                                            artForm={formData.artForm}
+                                            specialty={formData.specialty}
+                                            onStateChange={value=>setFormData(prev=>({...prev,state:value}))}
+                                            onArtFormChange={value=>setFormData(prev=>({...prev,artForm:value}))}
+                                            onSpecialtyChange={value=>setFormData(prev=>({...prev,specialty:value}))}
+                                        />
                                         <div className="space-y-2">
                                             <Label htmlFor="awards">Awards (Optional)</Label>
                                             <Input id="awards" value={formData.awards} onChange={handleChange} placeholder="e.g. National Art Prize 2023" />
