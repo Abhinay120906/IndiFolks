@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -20,10 +21,12 @@ export default function ArtistTaxonomyFields({
   state,artForm,onStateChange,onArtFormChange,specialty,onSpecialtyChange,required=false
 }:Props) {
   const {options,loading,error,refresh}=useArtistOptions();
+  const [forcedOtherState,setForcedOtherState]=useState(false);
+  const [forcedOtherArt,setForcedOtherArt]=useState(false);
   const knownStates=options.states.includes(state);
   const knownArt=options.artForms.includes(artForm);
-  const stateSelection=state?(knownStates?state:OTHER):"";
-  const artSelection=artForm?(knownArt?artForm:OTHER):"";
+  const stateSelection=forcedOtherState||state&&!knownStates?OTHER:state||"";
+  const artSelection=forcedOtherArt||artForm&&!knownArt?OTHER:artForm||"";
   return <div className="space-y-4">
     {error&&<div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
       Couldn't load the latest options. <Button size="sm" variant="outline" type="button" onClick={refresh}>Retry</Button>
@@ -32,7 +35,7 @@ export default function ArtistTaxonomyFields({
       <Label htmlFor="artist-state">State / Union Territory <span className="text-destructive">*</span></Label>
       <select id="artist-state" className={selectStyle} value={stateSelection} required={required}
         disabled={loading||!!error}
-        onChange={e=>onStateChange(e.target.value===OTHER?"":e.target.value)}>
+        onChange={e=>{setForcedOtherState(e.target.value===OTHER);onStateChange(e.target.value===OTHER?"":e.target.value);}}>
         <option value="">{loading?"Loading states…":"Choose state / union territory"}</option>
         {options.states.map(name=><option key={name} value={name}>{name}</option>)}
         <option value={OTHER}>Other — specify a location</option>
@@ -50,7 +53,7 @@ export default function ArtistTaxonomyFields({
       <Label htmlFor="artist-art-form">Primary art form <span className="text-destructive">*</span></Label>
       <select id="artist-art-form" className={selectStyle} value={artSelection} required={required}
         disabled={loading||!!error}
-        onChange={e=>onArtFormChange(e.target.value===OTHER?"":e.target.value)}>
+        onChange={e=>{setForcedOtherArt(e.target.value===OTHER);onArtFormChange(e.target.value===OTHER?"":e.target.value);}}>
         <option value="">{loading?"Loading art forms…":"Choose your tradition"}</option>
         {Object.entries(options.artFormGroups).map(([group,forms])=>
           <optgroup key={group} label={group}>
